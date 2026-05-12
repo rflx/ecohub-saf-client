@@ -1,10 +1,19 @@
 export type EventDirection = 'incoming' | 'outgoing';
 
-export type JsonEvent = {
+export type SafEventStatus = 'mocked' | 'received' | 'sent' | 'failed';
+
+export type SafEvent = {
   id: string;
   topic: string;
   direction: EventDirection;
+  eventType: string;
+  correlationId?: string;
   payload: Record<string, unknown>;
-  receivedAt: string;
+  timestamp: string;
+  status: SafEventStatus;
   profileId?: string;
+};
+
+export type JsonEvent = SafEvent & {
+  receivedAt?: string;
 };
