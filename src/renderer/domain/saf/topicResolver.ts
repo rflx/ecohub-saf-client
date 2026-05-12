@@ -9,10 +9,13 @@ export type ResolvedSafTopics = {
 };
 
 export function resolveSafTopics(profile: SafProfile, kafkaConfig: KafkaConfig): ResolvedSafTopics {
+  const legacyTopics = kafkaConfig.topics as KafkaConfig['topics'] & { outputTopic?: string };
+
   return {
     inputTopic: kafkaConfig.topics.inputTopic ?? DEFAULT_INPUT_TOPIC,
     outputTopic:
-      kafkaConfig.topics.outputTopic ??
+      kafkaConfig.topics.outputTopicOverride ??
+      legacyTopics.outputTopic ??
       resolveOutputTopicPattern(
         kafkaConfig.topics.outputTopicPattern ?? DEFAULT_OUTPUT_TOPIC_PATTERN,
         profile,

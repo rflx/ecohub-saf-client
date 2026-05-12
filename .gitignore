@@ -59,7 +59,24 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
 .env.test
+
+# Local secrets and certificates
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+*.csr
+*.jks
+*.keystore
+*.truststore
+/local-secrets/
+/secrets/
+/certificates/
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

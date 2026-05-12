@@ -240,6 +240,11 @@ h2 {
   border-color: #9eb4a8;
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .button--primary {
   border-color: #2f7d50;
   color: #ffffff;
@@ -295,7 +300,8 @@ h2 {
   gap: 14px;
 }
 
-.profile-card {
+.profile-card,
+.environment-card {
   display: grid;
   gap: 16px;
   padding: 16px;
@@ -304,9 +310,15 @@ h2 {
   background: #fbfdfc;
 }
 
-.profile-card--active {
+.profile-card--active,
+.environment-card--active {
   border-color: #4d9b6d;
   background: #f2fbf5;
+}
+
+.environment-list {
+  display: grid;
+  gap: 14px;
 }
 
 .profile-card__header {
@@ -397,6 +409,10 @@ h2 {
   background: #eef3f0;
 }
 
+.field--actions {
+  align-content: end;
+}
+
 .field--wide {
   grid-column: 1 / -1;
 }
@@ -411,6 +427,31 @@ h2 {
   width: 18px;
   min-height: 18px;
   margin: 0;
+}
+
+.tech-user-status {
+  min-height: 64px;
+  align-content: end;
+}
+
+.tech-user-status strong {
+  min-height: 40px;
+  padding: 10px;
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+  color: #315243;
+  background: #f7faf8;
+  font-size: 13px;
+}
+
+.form-message {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-message--error {
+  color: #8d2d24;
 }
 
 .profile-details {

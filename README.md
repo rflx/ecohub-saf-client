@@ -8,7 +8,8 @@ Die aktuelle Projektbasis stellt UI-Struktur, TypeScript-Models, SAF-Konfigurati
 
 - Profile fuer Service Consumer und Service Provider verwalten
 - Kafka-Konfigurationen und Topics lokal modellieren
-- SAF General API und Public Key Store API lokal konfigurieren
+- SAF General API und Public Key Store API zentral pro Environment lokal konfigurieren
+- Tech User Enrollment pro Profil mit Mock-Service vorbereiten
 - SAF Input- und Output-Topics aus Profil- und Kafka-Konfigurationen aufloesen
 - SAF Events und technische Logs mit Mockdaten anzeigen oder testen
 - Support- und Entwicklungsablaeufe ohne Secrets und ohne externe Systeme vorbereiten
@@ -43,16 +44,26 @@ npm start
 
 - Beispielprofile: `Service Consumer DEV` und `Service Provider DEV`
 - Profile koennen in der App unter `Profile` ueber `Neu` angelegt und ueber `Bearbeiten` konfiguriert werden.
-- Die lokale Profilverwaltung speichert Profile, API-Lizenzschluessel und Kafka-Konfigurationen im Renderer-`localStorage`.
+- Die lokale Profilverwaltung speichert Profile mit SAF Identity inklusive `licenceKey`, TechUser-Auth-Referenzen, Key-Referenzen und Kafka-Konfigurationen im Renderer-`localStorage`.
+- API-Endpunkte werden nicht im Profil gespeichert, sondern auf der Seite `API Environments` zentral pro Environment (`prod`, `iat`, `test`, `dev`) gepflegt.
+- Alle SAF API Calls sind fachlich einem SAF TechUser zugeordnet.
+- TechUser Auth wird pro Profil mit `availableMethods`, `preferredMethod`, TechUser IDP Number und Enrollment-Status modelliert.
+- Das Tech User Enrollment Formular ruft aktuell nur einen Mock-Service auf. Es simuliert mTLS-Zertifikat und OAuth2 Client Credentials, ohne eine echte General API Verbindung aufzubauen.
+- OAuth2 ist fuer spaetere Client-Credentials-Flows vorbereitet: `openIdConfigurationEndpoint`, optionaler `tokenEndpoint` und Scope `https://graph.microsoft.com/.default` sind modelliert.
+- Zertifikate, Bearer Tokens, Client Secrets, Passwoerter und Identification Codes werden nicht in Profilen gespeichert. Profile enthalten nur Secret-Referenzen.
+- `LocalMockSecretStore` kapselt lokale Mock-Secrets getrennt vom Profilmodell und kann spaeter durch eine macOS-Keychain-Implementierung ersetzt werden.
+- General API Endpoints dienen der Abfrage von Receiver / Service Agreements und werden pro Environment konfiguriert.
+- Public Key Store / PKI API Endpoints dienen dem Abruf fremder Public Keys und der Verwaltung eigener Public Keys und werden pro Environment konfiguriert.
+- SAF Profile fuehren getrennte Referenzen fuer Encryption- und Signing-Keypairs.
 - Default Input Topic: `eh.saf.in.v1`
 - Default Output Topic Pattern: `eh.saf.{ecoHubId}.{standard}.out.v1`
-- Topic-Namen bleiben ueber die Kafka-Konfiguration ueberschreibbar.
-- Credentials werden nur als `credentialsRef` modelliert und nicht gespeichert.
-- Lizenzschluessel werden pro Profil als gemeinsamer Wert fuer General API und Public Key Store API gepflegt; Beispielwerte bleiben Mockdaten.
+- Output Topics bleiben ueber `outputTopicOverride` in der Kafka-Topic-Konfiguration ueberschreibbar.
+- Secrets, Zertifikate, Private Keys, Passwoerter, Tokens und Client Secrets werden nicht im Profil gespeichert.
 
 ## Sicherheit
 
 - Keine Secrets committen.
 - Keine echten Broker, Zertifikate, Benutzernamen, Passwoerter oder Tokens verwenden.
+- Lokale Secret-, Zertifikats- und `.env`-Dateien sind in `.gitignore` ausgeschlossen; `.env.example` bleibt fuer Platzhalter erlaubt.
 - Beispielwerte muessen lokal und nicht produktiv bleiben.
 - Kafka und APIs sind in dieser Basis nur modelliert, nicht angebunden.

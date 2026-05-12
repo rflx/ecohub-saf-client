@@ -1,9 +1,10 @@
 import { resolveSafTopics } from '../../domain/saf';
-import type { KafkaConfig, SafProfile } from '../../models';
+import type { KafkaConfig, ProfileEnvironment, SafApiConfig, SafProfile } from '../../models';
 
 type ProfileSummaryProps = {
   profiles?: SafProfile[];
   activeProfileId?: string;
+  apiConfigs?: Record<ProfileEnvironment, SafApiConfig>;
   kafkaConfigs?: Record<string, KafkaConfig>;
   onEditProfile?: (profileId: string) => void;
 };
@@ -11,6 +12,7 @@ type ProfileSummaryProps = {
 export function ProfileSummary({
   profiles = [],
   activeProfileId,
+  apiConfigs = {},
   kafkaConfigs = {},
   onEditProfile,
 }: ProfileSummaryProps) {
@@ -29,6 +31,7 @@ export function ProfileSummary({
       <div className="profile-list">
         {profiles.map((profile) => {
           const kafkaConfig = kafkaConfigs[profile.kafkaConfigId];
+          const apiConfig = apiConfigs[profile.environment] ?? profile.apiConfig;
           const topics = kafkaConfig ? resolveSafTopics(profile, kafkaConfig) : undefined;
           const isActive = profile.id === activeProfileId;
 
@@ -61,6 +64,10 @@ export function ProfileSummary({
                   <dd>{profile.ecoHubId}</dd>
                 </div>
                 <div>
+                  <dt>Licence Key</dt>
+                  <dd>{profile.licenceKey ?? 'nicht konfiguriert'}</dd>
+                </div>
+                <div>
                   <dt>Receiver</dt>
                   <dd>{profile.receiver.displayName}</dd>
                 </div>
@@ -74,24 +81,35 @@ export function ProfileSummary({
                 </div>
                 <div>
                   <dt>General API</dt>
-                  <dd>{profile.generalApiConfig.baseUrl}</dd>
+                  <dd>{apiConfig?.generalApiBaseUrl ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>Public Key Store</dt>
-                  <dd>{profile.publicKeyStoreApiConfig.baseUrl}</dd>
+                  <dt>Public Key Store / PKI</dt>
+                  <dd>{apiConfig?.publicKeyStoreApiBaseUrl ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>Lizenzschluessel</dt>
-                  <dd>
-                    {profile.generalApiConfig.licenceKey ||
-                    profile.publicKeyStoreApiConfig.licenceKey
-                      ? 'gesetzt'
-                      : 'nicht gesetzt'}
-                  </dd>
+                  <dt>TechUser Auth</dt>
+                  <dd>{profile.techUserAuth?.preferredMethod ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>Credentials Ref</dt>
-                  <dd>{profile.credentialsRef?.id ?? 'keine Referenz'}</dd>
+                  <dt>TechUser IDP Number</dt>
+                  <dd>{profile.techUserAuth?.techUserIdpNumber ?? 'nicht konfiguriert'}</dd>
+                </div>
+                <div>
+                  <dt>Available Auth Methods</dt>
+                  <dd>{profile.techUserAuth?.availableMethods.join(', ') ?? 'keine'}</dd>
+                </div>
+                <div>
+                  <dt>Enrollment Status</dt>
+                  <dd>{profile.techUserAuth?.enrollmentStatus ?? 'not-enrolled'}</dd>
+                </div>
+                <div>
+                  <dt>Encryption Keypair</dt>
+                  <dd>{profile.keyReferences?.encryption.keyPairRef ?? 'keine Referenz'}</dd>
+                </div>
+                <div>
+                  <dt>Signing Keypair</dt>
+                  <dd>{profile.keyReferences?.signing.keyPairRef ?? 'keine Referenz'}</dd>
                 </div>
               </dl>
             </article>

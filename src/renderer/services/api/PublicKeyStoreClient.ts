@@ -1,17 +1,17 @@
-import type { PublicKeyStoreApiConfig, TechUserCredentialsRef } from '../../models';
+import type { SafApiConfig, TechUserAuthConfig } from '../../models';
 
 export class PublicKeyStoreClient {
   constructor(
-    private readonly config: PublicKeyStoreApiConfig,
-    private readonly credentialsRef?: TechUserCredentialsRef,
+    private readonly config: SafApiConfig,
+    private readonly techUserAuth?: TechUserAuthConfig,
   ) {}
 
   getConnectionSummary() {
     return {
-      baseUrl: this.config.baseUrl,
+      baseUrl: this.config.publicKeyStoreApiBaseUrl,
       timeoutMs: this.config.timeoutMs,
-      credentialsRef: this.credentialsRef?.id ?? this.config.credentialsRef,
-      licenceKeyConfigured: Boolean(this.config.licenceKey),
+      authMode: this.techUserAuth?.preferredMethod,
+      techUserIdpNumber: this.techUserAuth?.techUserIdpNumber,
       connected: false,
     };
   }

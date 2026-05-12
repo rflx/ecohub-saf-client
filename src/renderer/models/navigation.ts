@@ -1,4 +1,4 @@
-export type AppPage = 'dashboard' | 'profiles' | 'topics' | 'events' | 'logs' | 'settings';
+export type AppPage = 'dashboard' | 'profiles' | 'api-environments' | 'topics' | 'events' | 'logs' | 'settings';
 
 export type NavigationItem = {
   id: AppPage;

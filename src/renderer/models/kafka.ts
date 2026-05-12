@@ -2,10 +2,10 @@ export type TopicSubscriptionStatus = 'idle' | 'subscribing' | 'subscribed' | 'e
 
 export type KafkaSecurityProtocol = 'PLAINTEXT' | 'SSL' | 'SASL_SSL';
 
-export type KafkaTopicNames = {
+export type TopicConfig = {
   inputTopic?: string;
-  outputTopic?: string;
   outputTopicPattern?: string;
+  outputTopicOverride?: string;
 };
 
 export type KafkaConfig = {
@@ -14,12 +14,12 @@ export type KafkaConfig = {
   securityProtocol: KafkaSecurityProtocol;
   sslEnabled: boolean;
   saslMechanism?: 'plain' | 'scram-sha-256' | 'scram-sha-512';
-  topics: KafkaTopicNames;
+  topics: TopicConfig;
   consumerGroupId?: string;
   credentialsRef?: string;
 };
 
-export type TopicConfig = {
+export type KafkaTopicSubscription = {
   id: string;
   topicName: string;
   consumerGroup?: string;
@@ -28,5 +28,3 @@ export type TopicConfig = {
   description?: string;
   lastEventAt?: string;
 };
-
-export type KafkaTopicSubscription = TopicConfig;

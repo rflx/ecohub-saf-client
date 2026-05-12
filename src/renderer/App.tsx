@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { AppLayout } from './components/layout/AppLayout';
+import { ApiEnvironmentsPage } from './pages/ApiEnvironmentsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { EventsPage } from './pages/EventsPage';
 import { LogsPage } from './pages/LogsPage';
@@ -12,6 +13,7 @@ import { AppPage, NavigationItem } from './models';
 const navigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'profiles', label: 'Profile' },
+  { id: 'api-environments', label: 'API Environments' },
   { id: 'topics', label: 'Kafka Topics' },
   { id: 'events', label: 'JSON Events' },
   { id: 'logs', label: 'Logs' },
@@ -34,6 +36,7 @@ export function App() {
     >
       {activePage === 'dashboard' && <DashboardPage />}
       {activePage === 'profiles' && <ProfilesPage />}
+      {activePage === 'api-environments' && <ApiEnvironmentsPage />}
       {activePage === 'topics' && <TopicsPage />}
       {activePage === 'events' && <EventsPage />}
       {activePage === 'logs' && <LogsPage />}

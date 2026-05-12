@@ -61,7 +61,7 @@ export function ProfileSwitcher({
           <span>
             {activeProfile.type} / {activeProfile.environment.toUpperCase()}
           </span>
-          <span>Credentials: {activeProfile.credentialsRef?.id ?? 'keine Referenz'}</span>
+          <span>TechUser: {activeProfile.techUserAuth?.techUserIdpNumber ?? 'nicht konfiguriert'}</span>
         </div>
       )}
     </div>
