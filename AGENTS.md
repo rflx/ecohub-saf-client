@@ -20,6 +20,12 @@ Regeln fuer Codex und andere Coding Agents in diesem Repository.
 - Electron Main und Preload nur anfassen, wenn es fuer die Aufgabe erforderlich ist.
 - Bestehende Exporte nicht unnoetig brechen.
 
+## Dokumentation
+
+- Nach fachlichen, architektonischen, Setup- oder UI-Flow-Aenderungen immer pruefen, ob `README.md` und `docs/architecture.md` aktualisiert werden muessen.
+- Wenn eine Aenderung Verhalten, Bedienung, Konfiguration, Datenmodell, Prozessfluss oder Komponentenstruktur betrifft, `README.md` und/oder `docs/architecture.md` im selben Arbeitsschritt aktualisieren.
+- Reine interne Refactorings oder kosmetische Korrekturen muessen nur dokumentiert werden, wenn sie dokumentierte Konzepte, Befehle oder Architekturentscheidungen veraendern.
+
 ## Verifikation
 
 - Nach TypeScript-Aenderungen mindestens `npx tsc --noEmit` oder einen passenden vorhandenen Check ausfuehren.
