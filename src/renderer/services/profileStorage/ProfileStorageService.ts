@@ -1,8 +1,6 @@
 import {
   createDefaultActiveApiVersions,
-  mockKafkaConfigs,
-  mockProfiles,
-  mockSafEnvironments,
+  defaultSafEnvironments,
 } from '../../data';
 import type {
   KafkaConfig,
@@ -10,8 +8,10 @@ import type {
   SafEnvironment,
   SafProfile,
 } from '../../models';
+import { LOCAL_SECRET_TYPES, localSecretStore } from '../secrets';
 
 const PROFILE_STORAGE_KEY = 'ecohub-saf-client.profile-storage';
+const LEGACY_MOCK_PROFILE_IDS = new Set(['service-consumer-dev', 'service-provider-dev']);
 
 export type ProfileStorageSnapshot = {
   profiles: SafProfile[];
@@ -23,13 +23,19 @@ export type ProfileStorageSnapshot = {
 export class ProfileStorageService {
   private snapshot: ProfileStorageSnapshot;
 
-  constructor(initialProfiles: SafProfile[] = mockProfiles) {
-    this.snapshot = this.readPersistedSnapshot() ?? {
+  constructor(initialProfiles: SafProfile[] = []) {
+    const persistedSnapshot = this.readPersistedSnapshot();
+
+    this.snapshot = persistedSnapshot ?? {
       profiles: initialProfiles,
-      kafkaConfigs: mockKafkaConfigs,
-      safEnvironments: mockSafEnvironments,
+      kafkaConfigs: {},
+      safEnvironments: defaultSafEnvironments,
       activeProfileId: initialProfiles[0]?.id ?? '',
     };
+
+    if (persistedSnapshot) {
+      this.persistSnapshot();
+    }
   }
 
   getSnapshot(): ProfileStorageSnapshot {
@@ -99,6 +105,7 @@ export class ProfileStorageService {
           : this.snapshot.activeProfileId,
     };
     this.persistSnapshot();
+    LOCAL_SECRET_TYPES.forEach((secretType) => localSecretStore.deleteSecret(profileId, secretType));
 
     return this.getSnapshot();
   }
@@ -144,12 +151,23 @@ export class ProfileStorageService {
 
   private normalizeSnapshot(snapshot: ProfileStorageSnapshot): ProfileStorageSnapshot {
     const safEnvironments = this.normalizeSafEnvironments(snapshot);
+    const profiles = snapshot.profiles.filter((profile) => !LEGACY_MOCK_PROFILE_IDS.has(profile.id));
+    const kafkaConfigs = { ...snapshot.kafkaConfigs };
+
+    LEGACY_MOCK_PROFILE_IDS.forEach((profileId) => {
+      delete kafkaConfigs[profileId];
+    });
+
+    const activeProfileId = profiles.some((profile) => profile.id === snapshot.activeProfileId)
+      ? snapshot.activeProfileId
+      : profiles[0]?.id ?? '';
 
     return {
       ...snapshot,
-      profiles: [...snapshot.profiles],
-      kafkaConfigs: { ...snapshot.kafkaConfigs },
+      profiles,
+      kafkaConfigs,
       safEnvironments,
+      activeProfileId,
     };
   }
 
@@ -158,22 +176,22 @@ export class ProfileStorageService {
       (snapshot.safEnvironments ?? {}) as Partial<Record<ProfileEnvironment, SafEnvironment>>;
 
     return Object.fromEntries(
-      (Object.keys(mockSafEnvironments) as ProfileEnvironment[]).map((environment) => {
+      (Object.keys(defaultSafEnvironments) as ProfileEnvironment[]).map((environment) => {
         const savedEnvironment = snapshotEnvironments[environment];
 
         return [
           environment,
           {
-            ...mockSafEnvironments[environment],
+            ...defaultSafEnvironments[environment],
             ...savedEnvironment,
             id: environment,
-            name: savedEnvironment?.name ?? mockSafEnvironments[environment].name,
-            baseUrl: savedEnvironment?.baseUrl ?? mockSafEnvironments[environment].baseUrl,
+            name: savedEnvironment?.name ?? defaultSafEnvironments[environment].name,
+            baseUrl: savedEnvironment?.baseUrl ?? defaultSafEnvironments[environment].baseUrl,
             activeApiVersions: {
               ...createDefaultActiveApiVersions(),
               ...savedEnvironment?.activeApiVersions,
             },
-            timeoutMs: savedEnvironment?.timeoutMs ?? mockSafEnvironments[environment].timeoutMs,
+            timeoutMs: savedEnvironment?.timeoutMs ?? defaultSafEnvironments[environment].timeoutMs,
           },
         ];
       }),

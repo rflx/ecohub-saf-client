@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { apiManagementConfig } from '../data';
 import type { ApiId, ApiVersion, ProfileEnvironment, SafEnvironment } from '../models';
@@ -143,11 +144,9 @@ export function SettingsPage() {
               </div>
               <div className="api-version-list">
                 {api.versions.map((version, index) => (
-                  <details
-                    className="api-version-accordion"
+                  <ApiVersionAccordion
                     key={`${api.id}-${version.version}`}
-                    open={index === 0}
-                    onToggle={(event) => keepNewestVersionOpen(event.currentTarget, index)}
+                    initiallyOpen={index === 0}
                   >
                     <summary>
                       <span>Version {version.version}</span>
@@ -175,7 +174,7 @@ export function SettingsPage() {
                         <dd>{version.operations.map((operation) => operation.id).join(', ') || 'keine Metadaten'}</dd>
                       </div>
                     </dl>
-                  </details>
+                  </ApiVersionAccordion>
                 ))}
               </div>
             </article>
@@ -183,6 +182,32 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ApiVersionAccordion({
+  children,
+  initiallyOpen,
+}: {
+  children: ReactNode;
+  initiallyOpen: boolean;
+}) {
+  const hasAppliedInitialOpen = useRef(false);
+
+  return (
+    <details
+      className="api-version-accordion"
+      ref={(element) => {
+        if (!element || hasAppliedInitialOpen.current) {
+          return;
+        }
+
+        element.open = initiallyOpen;
+        hasAppliedInitialOpen.current = true;
+      }}
+    >
+      {children}
+    </details>
   );
 }
 
@@ -243,12 +268,6 @@ function SelectField({
 
 function getApiVersions(apiId: ApiId): ApiVersion[] {
   return apiManagementConfig.apis.find((api) => api.id === apiId)?.versions.map((version) => version.version) ?? [];
-}
-
-function keepNewestVersionOpen(detailsElement: HTMLDetailsElement, versionIndex: number) {
-  if (versionIndex === 0 && !detailsElement.open) {
-    detailsElement.open = true;
-  }
 }
 
 function normalizeVersion(value: string): ApiVersion | undefined {

@@ -440,18 +440,52 @@ h2 {
 
 .profile-editor {
   display: grid;
-  gap: 22px;
+  gap: 26px;
 }
 
 .form-section {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.form-section + .form-section {
+  margin-top: 4px;
+}
+
+.form-section__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e4ece7;
+}
+
+.form-section__number {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 8px;
+  color: #1f5b3a;
+  background: #dff3e7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.form-section__body {
   display: grid;
   gap: 12px;
 }
 
 .form-section h3 {
   margin: 0;
-  color: #315243;
-  font-size: 14px;
+  color: #172026;
+  font-size: 15px;
 }
 
 .form-grid {

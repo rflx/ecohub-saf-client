@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { DEFAULT_INPUT_TOPIC, DEFAULT_OUTPUT_TOPIC_PATTERN } from '../../domain/saf';
 import type {
@@ -6,11 +6,12 @@ import type {
   KafkaSecurityProtocol,
   ProfileEnvironment,
   SafProfile,
+  SecretRef,
   ServiceProfileType,
   TechUserAuthMethod,
   TechUserEnrollmentResponse,
 } from '../../models';
-import { localMockSecretStore, techUserEnrollmentService } from '../../services';
+import { localSecretStore, techUserEnrollmentService } from '../../services';
 
 type ProfileEditorProps = {
   profile?: SafProfile;
@@ -63,9 +64,19 @@ type ProfileFormState = {
   signingPublicKeyId: string;
 };
 
+type StoredEnrollmentRefs = {
+  mtlsCertificateRef?: SecretRef;
+  oauthClientIdRef?: SecretRef;
+  oauthClientSecretRef?: SecretRef;
+};
+
+type ProfileSavePayload = {
+  profile: SafProfile;
+  kafkaConfig: KafkaConfig;
+};
+
 const profileEnvironments: ProfileEnvironment[] = ['prod', 'iat', 'test', 'dev'];
 const profileTypes: ServiceProfileType[] = ['consumer', 'provider'];
-const securityProtocols: KafkaSecurityProtocol[] = ['PLAINTEXT', 'SSL', 'SASL_SSL'];
 const authMethods: TechUserAuthMethod[] = ['mtls', 'oauth2'];
 
 export function ProfileEditor({
@@ -93,138 +104,108 @@ export function ProfileEditor({
     }));
   };
 
-  const canSaveTechUserAuth = formState.storeMtlsCertificate || formState.storeOAuth2Credentials;
+  const handleNameChange = (name: string) => {
+    setFormState((current) => ({
+      ...current,
+      name,
+      id: profile ? current.id : createProfileId(name, current.environment),
+    }));
+  };
+
+  const handleEnvironmentChange = (environment: ProfileEnvironment) => {
+    setFormState((current) => ({
+      ...current,
+      environment,
+      id: profile ? current.id : createProfileId(current.name, environment),
+    }));
+  };
+
+  const canSaveProfile =
+    Boolean(formState.id.trim()) &&
+    Boolean(formState.name.trim());
   const canRunEnrollment =
+    canSaveProfile &&
+    Boolean(formState.licenceKey.trim()) &&
     Boolean(formState.techUserIdpNumber.trim()) &&
     Boolean(formState.enrollmentPassword.trim()) &&
     Boolean(formState.identificationCode.trim());
 
   const handleRunEnrollment = async () => {
     if (!canRunEnrollment) {
-      setEnrollmentError('TechUser IDP Number, Password und Identification Code sind erforderlich.');
+      setEnrollmentError('Profilname, Licence Key, TechUser IDP Number, Password und Identification Code sind erforderlich.');
       return;
     }
 
     setEnrollmentError(undefined);
-    const response = await techUserEnrollmentService.enrollTechUser({
-      profileId: formState.id,
-      techUserIdpNumber: formState.techUserIdpNumber,
-      password: formState.enrollmentPassword,
-      identificationCode: formState.identificationCode,
-    });
 
-    setEnrollmentResponse(response);
-    setFormState((current) => ({
-      ...current,
-      enrollmentPassword: '',
-      identificationCode: '',
-      storeMtlsCertificate: Boolean(response.mtlsCertificate),
-      storeOAuth2Credentials: Boolean(response.oauth2Credentials),
-      preferredMethod: response.mtlsCertificate ? 'mtls' : 'oauth2',
-      openIdConfigurationEndpoint: response.oauth2Credentials?.openIdConfigurationEndpoint ?? '',
-      tokenEndpoint: response.oauth2Credentials?.tokenEndpoint ?? '',
-    }));
+    try {
+      const response = await techUserEnrollmentService.enrollTechUser({
+        profileId: formState.id,
+        environmentId: formState.environment,
+        techUserIdpNumber: formState.techUserIdpNumber,
+        password: formState.enrollmentPassword,
+        identificationCode: formState.identificationCode,
+        licenceKey: formState.licenceKey,
+      });
+      const profileId = formState.id.trim();
+      const mtlsCertificateRef = response.mtlsCertificate
+        ? localSecretStore.setSecret(profileId, 'mtls-certificate', response.mtlsCertificate.certificateBase64)
+        : undefined;
+      const oauthClientIdRef = response.oauth2Credentials
+        ? localSecretStore.setSecret(profileId, 'oauth-client-id', response.oauth2Credentials.clientId)
+        : undefined;
+      const oauthClientSecretRef = response.oauth2Credentials
+        ? localSecretStore.setSecret(profileId, 'oauth-client-secret', response.oauth2Credentials.clientSecret)
+        : undefined;
+      const enrolledFormState: ProfileFormState = {
+        ...formState,
+        enrollmentPassword: '',
+        identificationCode: '',
+        storeMtlsCertificate: Boolean(response.mtlsCertificate),
+        storeOAuth2Credentials: Boolean(response.oauth2Credentials),
+        preferredMethod: response.mtlsCertificate ? 'mtls' : 'oauth2',
+        mtlsCertificateRef: mtlsCertificateRef?.id ?? '',
+        oauthClientIdRef: oauthClientIdRef?.id ?? '',
+        oauthClientSecretRef: oauthClientSecretRef?.id ?? '',
+        openIdConfigurationEndpoint: response.oauth2Credentials?.openIdConfigurationEndpoint ?? '',
+        tokenEndpoint: response.oauth2Credentials?.tokenEndpoint ?? '',
+      };
+      const savePayload = createProfileSavePayload({
+        formState: enrolledFormState,
+        profile,
+        kafkaConfig,
+        enrollmentResponse: response,
+        storedEnrollmentRefs: {
+          mtlsCertificateRef,
+          oauthClientIdRef,
+          oauthClientSecretRef,
+        },
+      });
+
+      setEnrollmentResponse(response);
+      setFormState(enrolledFormState);
+      onSave(savePayload.profile, savePayload.kafkaConfig);
+    } catch (error) {
+      setEnrollmentResponse(undefined);
+      setEnrollmentError(error instanceof Error ? error.message : 'Tech User Enrollment ist fehlgeschlagen.');
+    }
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!canSaveTechUserAuth) {
+    if (!canSaveProfile) {
       return;
     }
 
-    const now = new Date().toISOString();
-    const kafkaConfigId = formState.id;
-    const kafkaCredentialsRef = formState.kafkaCredentialsRef.trim() || `ref://tech-users/${formState.id}`;
-    const storedMtlsCertificateRef =
-      formState.storeMtlsCertificate && enrollmentResponse?.mtlsCertificate
-        ? localMockSecretStore.setSecret(formState.id, 'mtls-certificate', enrollmentResponse.mtlsCertificate.certificateBase64)
-        : profile?.techUserAuth.mtlsCertificateRef;
-    const storedOAuthClientIdRef =
-      formState.storeOAuth2Credentials && enrollmentResponse?.oauth2Credentials
-        ? localMockSecretStore.setSecret(formState.id, 'oauth-client-id', enrollmentResponse.oauth2Credentials.clientId)
-        : profile?.techUserAuth.oauthClientIdRef;
-    const storedOAuthClientSecretRef =
-      formState.storeOAuth2Credentials && enrollmentResponse?.oauth2Credentials
-        ? localMockSecretStore.setSecret(formState.id, 'oauth-client-secret', enrollmentResponse.oauth2Credentials.clientSecret)
-        : profile?.techUserAuth.oauthClientSecretRef;
-    const availableMethods = authMethods.filter((method) =>
-      method === 'mtls'
-        ? formState.storeMtlsCertificate
-        : formState.storeOAuth2Credentials,
-    );
-    const preferredMethod: TechUserAuthMethod = availableMethods.includes(formState.preferredMethod)
-      ? formState.preferredMethod
-      : availableMethods[0] ?? 'oauth2';
-    const kafkaConfigToSave: KafkaConfig = {
-      clientId: formState.kafkaClientId.trim(),
-      brokers: toList(formState.kafkaBrokers),
-      securityProtocol: formState.kafkaSecurityProtocol,
-      sslEnabled: formState.kafkaSslEnabled,
-      topics: {
-        inputTopic: optionalValue(formState.kafkaInputTopic),
-        outputTopicOverride: optionalValue(formState.kafkaOutputTopicOverride),
-        outputTopicPattern: optionalValue(formState.kafkaOutputTopicPattern),
-      },
-      consumerGroupId: optionalValue(formState.kafkaConsumerGroupId),
-      credentialsRef: optionalValue(kafkaCredentialsRef),
-    };
+    const savePayload = createProfileSavePayload({
+      formState,
+      profile,
+      kafkaConfig,
+      enrollmentResponse,
+    });
 
-    if (formState.kafkaSaslMechanism) {
-      kafkaConfigToSave.saslMechanism = formState.kafkaSaslMechanism;
-    }
-
-    const profileToSave: SafProfile = {
-      id: formState.id,
-      name: formState.name.trim(),
-      type: formState.type,
-      environment: formState.environment,
-      description: optionalValue(formState.description),
-      connectionStatus: profile?.connectionStatus ?? 'offline',
-      ecoHubId: formState.ecoHubId.trim(),
-      licenceKey: optionalValue(formState.licenceKey),
-      standard: formState.standard.trim(),
-      receiver: {
-        ecoHubId: formState.receiverEcoHubId.trim(),
-        standard: formState.receiverStandard.trim(),
-        displayName: formState.receiverDisplayName.trim(),
-      },
-      kafkaConfigId,
-      techUserAuth: {
-        availableMethods,
-        preferredMethod,
-        techUserIdpNumber: formState.techUserIdpNumber.trim(),
-        mtlsCertificateRef: formState.storeMtlsCertificate ? storedMtlsCertificateRef : undefined,
-        oauthClientIdRef: formState.storeOAuth2Credentials ? storedOAuthClientIdRef : undefined,
-        oauthClientSecretRef: formState.storeOAuth2Credentials ? storedOAuthClientSecretRef : undefined,
-        openIdConfigurationEndpoint: formState.storeOAuth2Credentials
-          ? optionalValue(formState.openIdConfigurationEndpoint)
-          : undefined,
-        tokenEndpoint: formState.storeOAuth2Credentials ? optionalValue(formState.tokenEndpoint) : undefined,
-        enrollmentStatus: enrollmentResponse || availableMethods.length > 0 ? 'enrolled' : 'not-enrolled',
-        lastEnrollmentAt: enrollmentResponse?.enrolledAt ?? profile?.techUserAuth.lastEnrollmentAt,
-      },
-      keyReferences: {
-        encryption: {
-          usage: 'encryption',
-          keyPairRef: formState.encryptionKeyPairRef.trim(),
-          publicKeyRef: formState.encryptionPublicKeyRef.trim(),
-          privateKeyRef: formState.encryptionPrivateKeyRef.trim(),
-          publicKeyId: optionalValue(formState.encryptionPublicKeyId),
-        },
-        signing: {
-          usage: 'signing',
-          keyPairRef: formState.signingKeyPairRef.trim(),
-          publicKeyRef: formState.signingPublicKeyRef.trim(),
-          privateKeyRef: formState.signingPrivateKeyRef.trim(),
-          publicKeyId: optionalValue(formState.signingPublicKeyId),
-        },
-      },
-      createdAt: profile?.createdAt ?? now,
-      updatedAt: now,
-    };
-
-    onSave(profileToSave, kafkaConfigToSave);
+    onSave(savePayload.profile, savePayload.kafkaConfig);
   };
 
   return (
@@ -232,7 +213,7 @@ export function ProfileEditor({
       <div className="panel-header">
         <div>
           <h2>{profile ? 'Profil bearbeiten' : 'Profil anlegen'}</h2>
-          <p>Lokale Profile und Kafka-Parameter ohne Secrets konfigurieren.</p>
+          <p>SAF Identity und Tech User Enrollment mit lokaler Secret-Ablage konfigurieren.</p>
         </div>
         <div className="panel-actions">
           {profile && onDelete && (
@@ -243,22 +224,21 @@ export function ProfileEditor({
           <button className="button button--secondary" type="button" onClick={onCancel}>
             Abbrechen
           </button>
-          <button className="button button--primary" disabled={!canSaveTechUserAuth} type="submit">
+          <button className="button button--primary" disabled={!canSaveProfile} type="submit">
             Speichern
           </button>
         </div>
       </div>
 
-      <section className="form-section">
-        <h3>SAF Identity</h3>
+      <FormSection number="01" title="SAF Identity">
         <div className="form-grid">
-          <TextField label="Name" required value={formState.name} onChange={(value) => handleChange('name', value)} />
+          <TextField label="Name" required value={formState.name} onChange={handleNameChange} />
           <TextField
             label="Profil-ID"
             required
             value={formState.id}
             onChange={(value) => handleChange('id', toSlug(value))}
-            disabled={Boolean(profile)}
+            disabled
           />
           <SelectField
             label="Typ"
@@ -270,28 +250,16 @@ export function ProfileEditor({
             label="Environment"
             value={formState.environment}
             options={profileEnvironments}
-            onChange={(value) => handleChange('environment', value as ProfileEnvironment)}
+            onChange={(value) => handleEnvironmentChange(value as ProfileEnvironment)}
           />
-          <TextField label="EcoHub ID" required value={formState.ecoHubId} onChange={(value) => handleChange('ecoHubId', value)} />
-          <TextField label="Licence Key" value={formState.licenceKey} onChange={(value) => handleChange('licenceKey', value)} />
-          <TextField label="Standard" required value={formState.standard} onChange={(value) => handleChange('standard', value)} />
+          <TextField label="Licence Key" wide value={formState.licenceKey} onChange={(value) => handleChange('licenceKey', value)} />
           <TextAreaField label="Beschreibung" value={formState.description} onChange={(value) => handleChange('description', value)} />
         </div>
-      </section>
+      </FormSection>
 
-      <section className="form-section">
-        <h3>General API Receiver</h3>
+      <FormSection number="02" title="Tech User Enrollment">
         <div className="form-grid">
-          <TextField label="Receiver EcoHub ID" required value={formState.receiverEcoHubId} onChange={(value) => handleChange('receiverEcoHubId', value)} />
-          <TextField label="Receiver Standard" required value={formState.receiverStandard} onChange={(value) => handleChange('receiverStandard', value)} />
-          <TextField label="Anzeigename" required value={formState.receiverDisplayName} onChange={(value) => handleChange('receiverDisplayName', value)} />
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h3>Tech User Enrollment</h3>
-        <div className="form-grid">
-          <TextField label="TechUser IDP Number" required value={formState.techUserIdpNumber} onChange={(value) => handleChange('techUserIdpNumber', value)} />
+          <TextField label="Tech User IDP Number" value={formState.techUserIdpNumber} onChange={(value) => handleChange('techUserIdpNumber', value)} />
           <TextField label="Password" type="password" value={formState.enrollmentPassword} onChange={(value) => handleChange('enrollmentPassword', value)} />
           <TextField label="Identification Code" type="password" value={formState.identificationCode} onChange={(value) => handleChange('identificationCode', value)} />
           <div className="field field--actions">
@@ -316,50 +284,178 @@ export function ProfileEditor({
           <TextField label="OpenID Configuration Endpoint" value={formState.openIdConfigurationEndpoint} onChange={(value) => handleChange('openIdConfigurationEndpoint', value)} />
           <TextField label="OAuth2 Token Endpoint" value={formState.tokenEndpoint} onChange={(value) => handleChange('tokenEndpoint', value)} />
         </div>
-        {!canSaveTechUserAuth && <p className="form-message form-message--error">Mindestens eine Authentifizierungsmethode muss gespeichert werden.</p>}
         {enrollmentError && <p className="form-message form-message--error">{enrollmentError}</p>}
-      </section>
+      </FormSection>
 
-      <section className="form-section">
-        <h3>Kafka Topics</h3>
-        <div className="form-grid">
-          <TextField label="Client ID" required value={formState.kafkaClientId} onChange={(value) => handleChange('kafkaClientId', value)} />
-          <TextField label="Broker" required value={formState.kafkaBrokers} onChange={(value) => handleChange('kafkaBrokers', value)} />
-          <SelectField
-            label="Security Protocol"
-            value={formState.kafkaSecurityProtocol}
-            options={securityProtocols}
-            onChange={(value) => handleChange('kafkaSecurityProtocol', value as KafkaSecurityProtocol)}
-          />
-          <SelectField
-            label="SASL Mechanism"
-            value={formState.kafkaSaslMechanism}
-            options={['', 'plain', 'scram-sha-256', 'scram-sha-512']}
-            onChange={(value) => handleChange('kafkaSaslMechanism', value as ProfileFormState['kafkaSaslMechanism'])}
-          />
-          <CheckboxField label="SSL aktiviert" checked={formState.kafkaSslEnabled} onChange={(value) => handleChange('kafkaSslEnabled', value)} />
-          <TextField label="Consumer Group" value={formState.kafkaConsumerGroupId} onChange={(value) => handleChange('kafkaConsumerGroupId', value)} />
-          <TextField label="Input Topic" value={formState.kafkaInputTopic} onChange={(value) => handleChange('kafkaInputTopic', value)} />
-          <TextField label="Output Topic Override" value={formState.kafkaOutputTopicOverride} onChange={(value) => handleChange('kafkaOutputTopicOverride', value)} />
-          <TextField label="Output Topic Pattern" value={formState.kafkaOutputTopicPattern} onChange={(value) => handleChange('kafkaOutputTopicPattern', value)} />
-          <TextField label="Kafka Credentials Ref" value={formState.kafkaCredentialsRef} onChange={(value) => handleChange('kafkaCredentialsRef', value)} />
-        </div>
-      </section>
-
-      <section className="form-section">
-        <h3>Key References</h3>
-        <div className="form-grid">
-          <TextField label="Encryption Keypair Ref" required value={formState.encryptionKeyPairRef} onChange={(value) => handleChange('encryptionKeyPairRef', value)} />
-          <TextField label="Encryption Public Key Ref" required value={formState.encryptionPublicKeyRef} onChange={(value) => handleChange('encryptionPublicKeyRef', value)} />
-          <TextField label="Encryption Private Key Ref" required value={formState.encryptionPrivateKeyRef} onChange={(value) => handleChange('encryptionPrivateKeyRef', value)} />
-          <TextField label="Encryption Public Key ID" value={formState.encryptionPublicKeyId} onChange={(value) => handleChange('encryptionPublicKeyId', value)} />
-          <TextField label="Signing Keypair Ref" required value={formState.signingKeyPairRef} onChange={(value) => handleChange('signingKeyPairRef', value)} />
-          <TextField label="Signing Public Key Ref" required value={formState.signingPublicKeyRef} onChange={(value) => handleChange('signingPublicKeyRef', value)} />
-          <TextField label="Signing Private Key Ref" required value={formState.signingPrivateKeyRef} onChange={(value) => handleChange('signingPrivateKeyRef', value)} />
-          <TextField label="Signing Public Key ID" value={formState.signingPublicKeyId} onChange={(value) => handleChange('signingPublicKeyId', value)} />
-        </div>
-      </section>
     </form>
+  );
+}
+
+function createProfileSavePayload({
+  enrollmentResponse,
+  formState,
+  kafkaConfig: _kafkaConfig,
+  profile,
+  storedEnrollmentRefs,
+}: {
+  enrollmentResponse?: TechUserEnrollmentResponse;
+  formState: ProfileFormState;
+  kafkaConfig?: KafkaConfig;
+  profile?: SafProfile;
+  storedEnrollmentRefs?: StoredEnrollmentRefs;
+}): ProfileSavePayload {
+  const now = new Date().toISOString();
+  const profileId = formState.id.trim();
+  const ecoHubId = optionalValue(formState.ecoHubId) ?? `local-${profileId}`;
+  const standard = optionalValue(formState.standard) ?? 'saf';
+  const kafkaConfigId = profileId;
+  const kafkaClientId =
+    profile && formState.kafkaClientId.trim()
+      ? formState.kafkaClientId.trim()
+      : `ecohub-saf-client-${profileId}`;
+  const kafkaCredentialsRef =
+    profile && formState.kafkaCredentialsRef.trim()
+      ? formState.kafkaCredentialsRef.trim()
+      : `ref://tech-users/${profileId}`;
+  const encryptionKeyPairRef =
+    profile && optionalValue(formState.encryptionKeyPairRef)
+      ? formState.encryptionKeyPairRef.trim()
+      : `ref://keys/${profileId}/encryption`;
+  const encryptionPublicKeyRef =
+    profile && optionalValue(formState.encryptionPublicKeyRef)
+      ? formState.encryptionPublicKeyRef.trim()
+      : `ref://keys/${profileId}/encryption/public`;
+  const encryptionPrivateKeyRef =
+    profile && optionalValue(formState.encryptionPrivateKeyRef)
+      ? formState.encryptionPrivateKeyRef.trim()
+      : `ref://keys/${profileId}/encryption/private`;
+  const signingKeyPairRef =
+    profile && optionalValue(formState.signingKeyPairRef)
+      ? formState.signingKeyPairRef.trim()
+      : `ref://keys/${profileId}/signing`;
+  const signingPublicKeyRef =
+    profile && optionalValue(formState.signingPublicKeyRef)
+      ? formState.signingPublicKeyRef.trim()
+      : `ref://keys/${profileId}/signing/public`;
+  const signingPrivateKeyRef =
+    profile && optionalValue(formState.signingPrivateKeyRef)
+      ? formState.signingPrivateKeyRef.trim()
+      : `ref://keys/${profileId}/signing/private`;
+  const storedMtlsCertificateRef =
+    storedEnrollmentRefs?.mtlsCertificateRef ??
+    (formState.storeMtlsCertificate && enrollmentResponse?.mtlsCertificate
+      ? localSecretStore.setSecret(profileId, 'mtls-certificate', enrollmentResponse.mtlsCertificate.certificateBase64)
+      : profile?.techUserAuth.mtlsCertificateRef);
+  const storedOAuthClientIdRef =
+    storedEnrollmentRefs?.oauthClientIdRef ??
+    (formState.storeOAuth2Credentials && enrollmentResponse?.oauth2Credentials
+      ? localSecretStore.setSecret(profileId, 'oauth-client-id', enrollmentResponse.oauth2Credentials.clientId)
+      : profile?.techUserAuth.oauthClientIdRef);
+  const storedOAuthClientSecretRef =
+    storedEnrollmentRefs?.oauthClientSecretRef ??
+    (formState.storeOAuth2Credentials && enrollmentResponse?.oauth2Credentials
+      ? localSecretStore.setSecret(profileId, 'oauth-client-secret', enrollmentResponse.oauth2Credentials.clientSecret)
+      : profile?.techUserAuth.oauthClientSecretRef);
+  const hasMtlsCertificate = formState.storeMtlsCertificate && Boolean(storedMtlsCertificateRef);
+  const hasOAuth2Credentials =
+    formState.storeOAuth2Credentials && Boolean(storedOAuthClientIdRef && storedOAuthClientSecretRef);
+  const availableMethods = authMethods.filter((method) =>
+    method === 'mtls'
+      ? hasMtlsCertificate
+      : hasOAuth2Credentials,
+  );
+  const preferredMethod: TechUserAuthMethod = availableMethods.includes(formState.preferredMethod)
+    ? formState.preferredMethod
+    : availableMethods[0] ?? 'oauth2';
+  const kafkaConfig: KafkaConfig = {
+    clientId: kafkaClientId,
+    brokers: toList(formState.kafkaBrokers),
+    securityProtocol: formState.kafkaSecurityProtocol,
+    sslEnabled: formState.kafkaSslEnabled,
+    topics: {
+      inputTopic: optionalValue(formState.kafkaInputTopic),
+      outputTopicOverride: optionalValue(formState.kafkaOutputTopicOverride),
+      outputTopicPattern: optionalValue(formState.kafkaOutputTopicPattern),
+    },
+    consumerGroupId: optionalValue(formState.kafkaConsumerGroupId),
+    credentialsRef: optionalValue(kafkaCredentialsRef),
+  };
+
+  if (formState.kafkaSaslMechanism) {
+    kafkaConfig.saslMechanism = formState.kafkaSaslMechanism;
+  }
+
+  return {
+    kafkaConfig,
+    profile: {
+      id: profileId,
+      name: formState.name.trim(),
+      type: formState.type,
+      environment: formState.environment,
+      description: optionalValue(formState.description),
+      connectionStatus: profile?.connectionStatus ?? 'offline',
+      ecoHubId,
+      licenceKey: optionalValue(formState.licenceKey),
+      standard,
+      receiver: {
+        ecoHubId: optionalValue(formState.receiverEcoHubId) ?? ecoHubId,
+        standard: optionalValue(formState.receiverStandard) ?? standard,
+        displayName: optionalValue(formState.receiverDisplayName) ?? formState.name.trim(),
+      },
+      kafkaConfigId,
+      techUserAuth: {
+        availableMethods,
+        preferredMethod,
+        techUserIdpNumber: formState.techUserIdpNumber.trim(),
+        mtlsCertificateRef: formState.storeMtlsCertificate ? storedMtlsCertificateRef : undefined,
+        oauthClientIdRef: formState.storeOAuth2Credentials ? storedOAuthClientIdRef : undefined,
+        oauthClientSecretRef: formState.storeOAuth2Credentials ? storedOAuthClientSecretRef : undefined,
+        openIdConfigurationEndpoint: formState.storeOAuth2Credentials
+          ? optionalValue(formState.openIdConfigurationEndpoint)
+          : undefined,
+        tokenEndpoint: formState.storeOAuth2Credentials ? optionalValue(formState.tokenEndpoint) : undefined,
+        enrollmentStatus: enrollmentResponse || availableMethods.length > 0 ? 'enrolled' : 'not-enrolled',
+        lastEnrollmentAt: enrollmentResponse?.enrolledAt ?? profile?.techUserAuth.lastEnrollmentAt,
+      },
+      keyReferences: {
+        encryption: {
+          usage: 'encryption',
+          keyPairRef: encryptionKeyPairRef,
+          publicKeyRef: encryptionPublicKeyRef,
+          privateKeyRef: encryptionPrivateKeyRef,
+          publicKeyId: optionalValue(formState.encryptionPublicKeyId),
+        },
+        signing: {
+          usage: 'signing',
+          keyPairRef: signingKeyPairRef,
+          publicKeyRef: signingPublicKeyRef,
+          privateKeyRef: signingPrivateKeyRef,
+          publicKeyId: optionalValue(formState.signingPublicKeyId),
+        },
+      },
+      createdAt: profile?.createdAt ?? now,
+      updatedAt: now,
+    },
+  };
+}
+
+function FormSection({
+  children,
+  number,
+  title,
+}: {
+  children: ReactNode;
+  number: string;
+  title: string;
+}) {
+  return (
+    <section className="form-section">
+      <div className="form-section__header">
+        <span className="form-section__number">{number}</span>
+        <h3>{title}</h3>
+      </div>
+      <div className="form-section__body">{children}</div>
+    </section>
   );
 }
 
@@ -370,6 +466,7 @@ function TextField({
   required = false,
   type = 'text',
   value,
+  wide = false,
 }: {
   disabled?: boolean;
   label: string;
@@ -377,9 +474,10 @@ function TextField({
   required?: boolean;
   type?: string;
   value: string;
+  wide?: boolean;
 }) {
   return (
-    <label className="field">
+    <label className={wide ? 'field field--wide' : 'field'}>
       <span>{label}</span>
       <input disabled={disabled} required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
@@ -455,7 +553,7 @@ function StatusField({ active, label }: { active: boolean; label: string }) {
 }
 
 function createFormState(profile?: SafProfile, kafkaConfig?: KafkaConfig): ProfileFormState {
-  const id = profile?.id ?? `profile-${Date.now()}`;
+  const id = profile?.id ?? createProfileId('', 'prod');
   const preferredMethod = profile?.techUserAuth?.preferredMethod ?? 'oauth2';
   const mtlsCertificateRef = profile?.techUserAuth?.mtlsCertificateRef?.id ?? '';
   const oauthClientIdRef = profile?.techUserAuth?.oauthClientIdRef?.id ?? '';
@@ -523,4 +621,9 @@ function toSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function createProfileId(profileName: string, environment: ProfileEnvironment): string {
+  const profileNameSlug = toSlug(profileName);
+  return profileNameSlug ? `${profileNameSlug}-${environment}` : '';
 }

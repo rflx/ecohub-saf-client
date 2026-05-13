@@ -33,32 +33,32 @@ export const apiManagementConfig: ApiManagementConfig = {
   })),
 };
 
-export const mockSafEnvironments: Record<ProfileEnvironment, SafEnvironment> = {
+export const defaultSafEnvironments: Record<ProfileEnvironment, SafEnvironment> = {
   prod: {
     id: 'prod',
     name: 'PROD',
-    baseUrl: 'https://prod-api.example.invalid',
+    baseUrl: '',
     activeApiVersions: createDefaultActiveApiVersions(),
     timeoutMs: 10000,
   },
   iat: {
     id: 'iat',
     name: 'IAT',
-    baseUrl: 'https://iat-api.example.invalid',
+    baseUrl: '',
     activeApiVersions: createDefaultActiveApiVersions(),
     timeoutMs: 8000,
   },
   test: {
     id: 'test',
     name: 'TEST',
-    baseUrl: 'https://test-api.example.invalid',
+    baseUrl: '',
     activeApiVersions: createDefaultActiveApiVersions(),
     timeoutMs: 8000,
   },
   dev: {
     id: 'dev',
     name: 'DEV',
-    baseUrl: 'http://localhost:8080',
+    baseUrl: '',
     activeApiVersions: createDefaultActiveApiVersions(),
     timeoutMs: 5000,
   },

@@ -68,9 +68,11 @@ export type TechUserAuthConfig = {
 
 export type TechUserEnrollmentRequest = {
   profileId: string;
+  environmentId: ProfileEnvironment;
   techUserIdpNumber: string;
   password: string;
   identificationCode: string;
+  licenceKey: string;
 };
 
 export type MtlsCertificateInfo = {

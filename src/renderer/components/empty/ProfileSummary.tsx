@@ -1,12 +1,10 @@
 import { apiManagementConfig } from '../../data';
-import { resolveSafTopics } from '../../domain/saf';
-import type { KafkaConfig, ProfileEnvironment, SafEnvironment, SafProfile } from '../../models';
+import type { ProfileEnvironment, SafEnvironment, SafProfile } from '../../models';
 
 type ProfileSummaryProps = {
   profiles?: SafProfile[];
   activeProfileId?: string;
   safEnvironments?: Partial<Record<ProfileEnvironment, SafEnvironment>>;
-  kafkaConfigs?: Record<string, KafkaConfig>;
   onEditProfile?: (profileId: string) => void;
 };
 
@@ -14,7 +12,6 @@ export function ProfileSummary({
   profiles = [],
   activeProfileId,
   safEnvironments = {},
-  kafkaConfigs = {},
   onEditProfile,
 }: ProfileSummaryProps) {
   if (profiles.length === 0) {
@@ -31,9 +28,7 @@ export function ProfileSummary({
       <h2>Profile</h2>
       <div className="profile-list">
         {profiles.map((profile) => {
-          const kafkaConfig = kafkaConfigs[profile.kafkaConfigId];
           const safEnvironment = safEnvironments[profile.environment];
-          const topics = kafkaConfig ? resolveSafTopics(profile, kafkaConfig) : undefined;
           const isActive = profile.id === activeProfileId;
 
           return (
@@ -69,18 +64,6 @@ export function ProfileSummary({
                   <dd>{profile.licenceKey ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>Receiver</dt>
-                  <dd>{profile.receiver.displayName}</dd>
-                </div>
-                <div>
-                  <dt>Input Topic</dt>
-                  <dd>{topics?.inputTopic ?? 'nicht konfiguriert'}</dd>
-                </div>
-                <div>
-                  <dt>Output Topic</dt>
-                  <dd>{topics?.outputTopic ?? 'nicht konfiguriert'}</dd>
-                </div>
-                <div>
                   <dt>API Base URL</dt>
                   <dd>{safEnvironment?.baseUrl ?? 'nicht konfiguriert'}</dd>
                 </div>
@@ -91,11 +74,11 @@ export function ProfileSummary({
                   </div>
                 ))}
                 <div>
-                  <dt>TechUser Auth</dt>
+                  <dt>Tech User Auth</dt>
                   <dd>{profile.techUserAuth?.preferredMethod ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>TechUser IDP Number</dt>
+                  <dt>Tech User IDP Number</dt>
                   <dd>{profile.techUserAuth?.techUserIdpNumber ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
@@ -105,14 +88,6 @@ export function ProfileSummary({
                 <div>
                   <dt>Enrollment Status</dt>
                   <dd>{profile.techUserAuth?.enrollmentStatus ?? 'not-enrolled'}</dd>
-                </div>
-                <div>
-                  <dt>Encryption Keypair</dt>
-                  <dd>{profile.keyReferences?.encryption.keyPairRef ?? 'keine Referenz'}</dd>
-                </div>
-                <div>
-                  <dt>Signing Keypair</dt>
-                  <dd>{profile.keyReferences?.signing.keyPairRef ?? 'keine Referenz'}</dd>
                 </div>
               </dl>
             </article>

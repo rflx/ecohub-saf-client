@@ -1,6 +1,33 @@
 import { app, BrowserWindow } from 'electron';
+import { existsSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+
+const APP_NAME = 'EcoHub SAF Client';
+
+const configureAppPaths = () => {
+  app.setName(APP_NAME);
+
+  if (process.platform !== 'darwin') {
+    return;
+  }
+
+  const cacheRoot = path.join(app.getPath('home'), 'Library', 'Caches');
+  const oldCachePath = path.join(cacheRoot, 'ecohub-saf-client');
+  const appCachePath = path.join(cacheRoot, APP_NAME);
+
+  try {
+    if (existsSync(oldCachePath) && !existsSync(appCachePath)) {
+      renameSync(oldCachePath, appCachePath);
+    }
+  } catch (error) {
+    console.warn('Unable to migrate legacy cache directory.', error);
+  }
+
+  app.commandLine.appendSwitch('disk-cache-dir', appCachePath);
+};
+
+configureAppPaths();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {

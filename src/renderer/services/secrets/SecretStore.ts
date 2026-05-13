@@ -6,19 +6,28 @@ export type SecretType =
   | 'oauth-client-secret'
   | 'oauth-bearer-token';
 
+export const LOCAL_SECRET_TYPES: SecretType[] = [
+  'mtls-certificate',
+  'oauth-client-id',
+  'oauth-client-secret',
+  'oauth-bearer-token',
+];
+
 export interface SecretStore {
   setSecret(profileId: string, secretType: SecretType, value: string): SecretRef;
   getSecret(profileId: string, secretType: SecretType): string | undefined;
   deleteSecret(profileId: string, secretType: SecretType): void;
 }
 
-const SECRET_STORAGE_KEY = 'ecohub-saf-client.local-mock-secrets';
+const SECRET_STORAGE_KEY = 'ecohub-saf-client.local-secrets';
+const LEGACY_MOCK_SECRET_STORAGE_KEY = 'ecohub-saf-client.local-mock-secrets';
 
-export class LocalMockSecretStore implements SecretStore {
+export class LocalSecretStore implements SecretStore {
   private secrets: Record<string, string>;
 
   constructor() {
     this.secrets = this.readSecrets();
+    this.deleteLegacyMockSecrets();
   }
 
   setSecret(profileId: string, secretType: SecretType, value: string): SecretRef {
@@ -41,7 +50,7 @@ export class LocalMockSecretStore implements SecretStore {
 
   private createRef(profileId: string, secretType: SecretType): SecretRef {
     return {
-      id: `ref://local-mock-secrets/${profileId}/${secretType}`,
+      id: `ref://local-secrets/${profileId}/${secretType}`,
       type: secretType,
       profileId,
     };
@@ -68,9 +77,17 @@ export class LocalMockSecretStore implements SecretStore {
     window.localStorage.setItem(SECRET_STORAGE_KEY, JSON.stringify(this.secrets));
   }
 
+  private deleteLegacyMockSecrets(): void {
+    if (!this.canUseLocalStorage()) {
+      return;
+    }
+
+    window.localStorage.removeItem(LEGACY_MOCK_SECRET_STORAGE_KEY);
+  }
+
   private canUseLocalStorage(): boolean {
     return typeof window !== 'undefined' && Boolean(window.localStorage);
   }
 }
 
-export const localMockSecretStore = new LocalMockSecretStore();
+export const localSecretStore = new LocalSecretStore();

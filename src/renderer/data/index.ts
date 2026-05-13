@@ -1,8 +1,5 @@
 export {
   apiManagementConfig,
   createDefaultActiveApiVersions,
-  mockSafEnvironments,
+  defaultSafEnvironments,
 } from './apiManagement';
-export { mockEvents } from './mockEvents';
-export { mockKafkaConfigs, mockProfiles, mockTopicConfigs } from './mockProfiles';
-export { mockLogs } from './mockLogs';

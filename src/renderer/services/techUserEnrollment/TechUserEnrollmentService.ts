@@ -1,75 +1,124 @@
 import type { TechUserEnrollmentRequest, TechUserEnrollmentResponse } from '../../models';
-
-const MOCK_SCOPE = 'https://graph.microsoft.com/.default' as const;
+import { GeneralApiService, type EnrolTechUserRequest } from '../../../saf/services';
+import packageJson from '../../../../package.json';
+import { ApiRuntimeResolver } from '../../domain/saf';
+import { profileStorageService } from '../profileStorage';
 
 export interface TechUserEnrollmentService {
   enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse>;
 }
 
-export class MockTechUserEnrollmentService implements TechUserEnrollmentService {
+export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentService {
+  constructor(private readonly generalApiService = new GeneralApiService()) {}
+
   async enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse> {
-    const enrolledAt = new Date().toISOString();
-    const randomId = createRandomId();
+    validateEnrollmentRequest(request);
 
-    return Promise.resolve({
-      techUserIdpNumber: request.techUserIdpNumber.trim(),
-      enrolledAt,
-      mtlsCertificate: {
-        certificateBase64: createMockCertificate(request.profileId, randomId, enrolledAt),
-        expiresAt: addDays(enrolledAt, 90),
-        fingerprint: `mock-fingerprint-${randomId}`,
-      },
-      oauth2Credentials: {
-        clientId: `mock-client-${request.profileId}-${randomId}`,
-        clientSecret: createRandomSecret(),
-        openIdConfigurationEndpoint:
-          'https://login.example.invalid/mock-tenant/v2.0/.well-known/openid-configuration',
-        tokenEndpoint: 'https://login.example.invalid/mock-tenant/oauth2/v2.0/token',
-        scope: MOCK_SCOPE,
-      },
+    const snapshot = profileStorageService.getSnapshot();
+    const environment = snapshot.safEnvironments[request.environmentId];
+
+    if (!environment) {
+      throw new Error(`Environment nicht gefunden: ${request.environmentId}`);
+    }
+
+    if (!environment.baseUrl.trim()) {
+      throw new Error(`General API Base URL fuer ${environment.name} ist nicht konfiguriert.`);
+    }
+
+    const resolver = new ApiRuntimeResolver(snapshot.safEnvironments, snapshot.profiles);
+    const resolution = resolver.resolve({
+      environmentId: request.environmentId,
+      apiId: 'general-api',
+      operationId: 'techUserEnrolment',
     });
+    const enrolmentRequest: EnrolTechUserRequest = {
+      idpUserId: request.techUserIdpNumber.trim(),
+      password: request.password,
+      iak: request.identificationCode.trim(),
+      licenceKey: request.licenceKey.trim(),
+      requestId: createRequestId(),
+      requestTime: new Date().toISOString(),
+      userAgent: {
+        name: packageJson.productName ?? 'EcoHub SAF Client',
+        version: packageJson.version ?? '1.0.0',
+      },
+    };
+    const response = await this.generalApiService.enrolTechUser(enrolmentRequest, {
+      url: resolution.resolvedUrl,
+      timeoutMs: environment.timeoutMs,
+    });
+
+    validateEnrollmentResponse(response);
+
+    return {
+      techUserIdpNumber: request.techUserIdpNumber.trim(),
+      mtlsCertificate: response.techUserCert
+        ? {
+            certificateBase64: response.techUserCert,
+          }
+        : undefined,
+      oauth2Credentials: response.oAuth2
+        ? {
+            clientId: response.oAuth2.clientId,
+            clientSecret: response.oAuth2.clientSecret,
+            openIdConfigurationEndpoint: response.oAuth2.openIdConfigurationEndpoint,
+            scope: 'https://graph.microsoft.com/.default',
+          }
+        : undefined,
+      enrolledAt: new Date().toISOString(),
+    };
   }
 }
 
-function createMockCertificate(profileId: string, randomId: string, enrolledAt: string): string {
-  const payload = JSON.stringify({
-    kind: 'mock-mtls-certificate',
-    profileId,
-    randomId,
-    enrolledAt,
+export const techUserEnrollmentService = new GeneralApiTechUserEnrollmentService();
+
+function validateEnrollmentRequest(request: TechUserEnrollmentRequest): void {
+  if (!request.profileId.trim()) {
+    throw new Error('Profil-ID ist fuer Tech User Enrollment erforderlich.');
+  }
+
+  if (!request.techUserIdpNumber.trim()) {
+    throw new Error('TechUser IDP Number ist erforderlich.');
+  }
+
+  if (!request.password.trim()) {
+    throw new Error('Password ist erforderlich.');
+  }
+
+  if (!request.identificationCode.trim()) {
+    throw new Error('Identification Code ist erforderlich.');
+  }
+
+  if (!request.licenceKey.trim()) {
+    throw new Error('Licence Key ist fuer Tech User Enrollment erforderlich.');
+  }
+}
+
+function createRequestId(): string {
+  const browserCrypto = crypto as Crypto & { randomUUID?: () => string };
+
+  if (typeof browserCrypto.randomUUID === 'function') {
+    return browserCrypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const randomValue = Math.floor(Math.random() * 16);
+    const value = character === 'x' ? randomValue : (randomValue & 0x3) | 0x8;
+
+    return value.toString(16);
   });
-
-  return encodeBase64(payload);
 }
 
-function createRandomSecret(): string {
-  return `mock-secret-${createRandomId()}-${createRandomId()}`;
-}
-
-function createRandomId(): string {
-  const webCrypto = typeof crypto !== 'undefined'
-    ? (crypto as Crypto & { randomUUID?: () => string })
-    : undefined;
-
-  if (webCrypto?.randomUUID) {
-    return webCrypto.randomUUID();
+function validateEnrollmentResponse(response: Awaited<ReturnType<GeneralApiService['enrolTechUser']>>): void {
+  if (!response.techUserCert) {
+    throw new Error('General API Enrollment Response enthaelt kein TechUser-Zertifikat.');
   }
 
-  return Math.random().toString(36).slice(2);
-}
-
-function encodeBase64(value: string): string {
-  if (typeof btoa === 'function') {
-    return btoa(value);
+  if (
+    !response.oAuth2?.clientId ||
+    !response.oAuth2.clientSecret ||
+    !response.oAuth2.openIdConfigurationEndpoint
+  ) {
+    throw new Error('General API Enrollment Response enthaelt keine vollstaendigen OAuth2 Credentials.');
   }
-
-  return value;
 }
-
-function addDays(isoDate: string, days: number): string {
-  const date = new Date(isoDate);
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
-}
-
-export const techUserEnrollmentService = new MockTechUserEnrollmentService();

@@ -1,6 +1,6 @@
 export type EventDirection = 'incoming' | 'outgoing';
 
-export type SafEventStatus = 'mocked' | 'received' | 'sent' | 'failed';
+export type SafEventStatus = 'received' | 'sent' | 'failed';
 
 export type SafEvent = {
   id: string;
