@@ -4,6 +4,41 @@ export type ConnectionStatus = 'offline' | 'connecting' | 'online' | 'error';
 
 export type ProfileEnvironment = 'prod' | 'iat' | 'test' | 'dev';
 
+export type ApiId = string;
+
+export type ApiVersion = string;
+
+export type ApiSupportStatus = 'supported' | 'experimental' | 'deprecated';
+
+export type ActiveApiVersionMapping = Record<ApiId, ApiVersion | undefined>;
+
+export type ApiOperationDefinition = {
+  id: string;
+  name: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  path: string;
+  operationId: string;
+};
+
+export type ApiSpecDefinition = {
+  apiId: ApiId;
+  version: ApiVersion;
+  name: string;
+  basePath: string;
+  localSpecPath: string;
+  generatedTypesPath: string;
+  supportStatus: ApiSupportStatus;
+  operations: ApiOperationDefinition[];
+};
+
+export type ApiManagementConfig = {
+  apis: {
+    id: ApiId;
+    name: string;
+    versions: ApiSpecDefinition[];
+  }[];
+};
+
 export type TechUserAuthMethod = 'mtls' | 'oauth2';
 
 export type AuthMode = TechUserAuthMethod;
@@ -72,14 +107,12 @@ export type Receiver = {
   displayName: string;
 };
 
-export type SafApiConfig = {
-  generalApiBaseUrl: string;
-  publicKeyStoreApiBaseUrl: string;
+export type SafEnvironment = {
+  id: ProfileEnvironment;
+  name: string;
+  baseUrl: string;
+  activeApiVersions: ActiveApiVersionMapping;
   timeoutMs: number;
-};
-
-export type SafEnvironmentApiConfig = SafApiConfig & {
-  environment: ProfileEnvironment;
 };
 
 export type SafKeyReference = {
@@ -109,7 +142,6 @@ export type SafProfile = {
   receiver: Receiver;
   kafkaConfigId: string;
   techUserAuth: TechUserAuthConfig;
-  apiConfig?: SafApiConfig;
   keyReferences: SafKeyReferences;
   createdAt: string;
   updatedAt: string;

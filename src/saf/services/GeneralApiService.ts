@@ -1,4 +1,4 @@
-import type { operations } from '../generated/general-api-v2';
+import type { operations } from '../generated/general-api-2.0.0';
 
 export type EnrolTechUserRequest =
   operations['EnrolTechUser']['requestBody']['content']['application/json'];

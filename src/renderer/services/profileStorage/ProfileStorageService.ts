@@ -1,11 +1,14 @@
-import { mockApiConfigs, mockKafkaConfigs, mockProfiles } from '../../data';
+import {
+  createDefaultActiveApiVersions,
+  mockKafkaConfigs,
+  mockProfiles,
+  mockSafEnvironments,
+} from '../../data';
 import type {
   KafkaConfig,
   ProfileEnvironment,
-  SafApiConfig,
-  SafKeyReferences,
+  SafEnvironment,
   SafProfile,
-  TechUserAuthConfig,
 } from '../../models';
 
 const PROFILE_STORAGE_KEY = 'ecohub-saf-client.profile-storage';
@@ -13,7 +16,7 @@ const PROFILE_STORAGE_KEY = 'ecohub-saf-client.profile-storage';
 export type ProfileStorageSnapshot = {
   profiles: SafProfile[];
   kafkaConfigs: Record<string, KafkaConfig>;
-  apiConfigs: Record<ProfileEnvironment, SafApiConfig>;
+  safEnvironments: Record<ProfileEnvironment, SafEnvironment>;
   activeProfileId: string;
 };
 
@@ -24,7 +27,7 @@ export class ProfileStorageService {
     this.snapshot = this.readPersistedSnapshot() ?? {
       profiles: initialProfiles,
       kafkaConfigs: mockKafkaConfigs,
-      apiConfigs: mockApiConfigs,
+      safEnvironments: mockSafEnvironments,
       activeProfileId: initialProfiles[0]?.id ?? '',
     };
   }
@@ -34,7 +37,7 @@ export class ProfileStorageService {
       ...this.snapshot,
       profiles: [...this.snapshot.profiles],
       kafkaConfigs: { ...this.snapshot.kafkaConfigs },
-      apiConfigs: { ...this.snapshot.apiConfigs },
+      safEnvironments: { ...this.snapshot.safEnvironments },
     };
   }
 
@@ -64,7 +67,7 @@ export class ProfileStorageService {
         ...this.snapshot.kafkaConfigs,
         [profile.kafkaConfigId]: kafkaConfig,
       },
-      apiConfigs: this.snapshot.apiConfigs,
+      safEnvironments: this.snapshot.safEnvironments,
       activeProfileId: this.snapshot.activeProfileId || profile.id,
     };
     this.persistSnapshot();
@@ -89,7 +92,7 @@ export class ProfileStorageService {
     this.snapshot = {
       profiles,
       kafkaConfigs,
-      apiConfigs: this.snapshot.apiConfigs,
+      safEnvironments: this.snapshot.safEnvironments,
       activeProfileId:
         this.snapshot.activeProfileId === profileId
           ? profiles[0]?.id ?? ''
@@ -100,13 +103,15 @@ export class ProfileStorageService {
     return this.getSnapshot();
   }
 
-  saveApiConfig(environment: ProfileEnvironment, apiConfig: SafApiConfig): ProfileStorageSnapshot {
+  saveSafEnvironment(safEnvironment: SafEnvironment): ProfileStorageSnapshot {
+    const safEnvironments = {
+      ...this.snapshot.safEnvironments,
+      [safEnvironment.id]: safEnvironment,
+    };
+
     this.snapshot = {
       ...this.snapshot,
-      apiConfigs: {
-        ...this.snapshot.apiConfigs,
-        [environment]: apiConfig,
-      },
+      safEnvironments,
     };
     this.persistSnapshot();
 
@@ -138,150 +143,41 @@ export class ProfileStorageService {
   }
 
   private normalizeSnapshot(snapshot: ProfileStorageSnapshot): ProfileStorageSnapshot {
-    const apiConfigs = this.normalizeApiConfigs(snapshot);
+    const safEnvironments = this.normalizeSafEnvironments(snapshot);
 
     return {
       ...snapshot,
-      profiles: snapshot.profiles.map((profile) => this.normalizeProfile(profile)),
-      kafkaConfigs: Object.fromEntries(
-        Object.entries(snapshot.kafkaConfigs).map(([id, kafkaConfig]) => [
-          id,
-          this.normalizeKafkaConfig(kafkaConfig),
-        ]),
-      ),
-      apiConfigs,
+      profiles: [...snapshot.profiles],
+      kafkaConfigs: { ...snapshot.kafkaConfigs },
+      safEnvironments,
     };
   }
 
-  private normalizeProfile(profile: SafProfile): SafProfile {
-    const legacyProfile = profile as SafProfile & {
-      credentialsRef?: { id?: string };
-      licenceKey?: string;
-      generalApiConfig?: { baseUrl?: string; timeoutMs?: number };
-      publicKeyStoreApiConfig?: { baseUrl?: string };
-      techUserAuth?: TechUserAuthConfig & {
-        authMode?: 'mtls' | 'oauth2';
-        techUserRef?: string;
-        certificateRef?: string;
-        bearerTokenRef?: string;
-      };
-      keyReferences?: SafKeyReferences;
-    };
-    const techUserAuth = this.normalizeTechUserAuth(profile.id, legacyProfile.techUserAuth, legacyProfile.credentialsRef?.id);
+  private normalizeSafEnvironments(snapshot: ProfileStorageSnapshot): Record<ProfileEnvironment, SafEnvironment> {
+    const snapshotEnvironments =
+      (snapshot.safEnvironments ?? {}) as Partial<Record<ProfileEnvironment, SafEnvironment>>;
 
-    return {
-      ...profile,
-      techUserAuth,
-      apiConfig: undefined,
-      keyReferences: legacyProfile.keyReferences ?? {
-        encryption: {
-          usage: 'encryption',
-          keyPairRef: `ref://keys/${profile.id}/encryption`,
-          publicKeyRef: `ref://keys/${profile.id}/encryption/public`,
-          privateKeyRef: `ref://keys/${profile.id}/encryption/private`,
-        },
-        signing: {
-          usage: 'signing',
-          keyPairRef: `ref://keys/${profile.id}/signing`,
-          publicKeyRef: `ref://keys/${profile.id}/signing/public`,
-          privateKeyRef: `ref://keys/${profile.id}/signing/private`,
-        },
-      },
-    };
-  }
+    return Object.fromEntries(
+      (Object.keys(mockSafEnvironments) as ProfileEnvironment[]).map((environment) => {
+        const savedEnvironment = snapshotEnvironments[environment];
 
-  private normalizeTechUserAuth(
-    profileId: string,
-    authConfig?: TechUserAuthConfig & {
-      authMode?: 'mtls' | 'oauth2';
-      techUserRef?: string;
-      certificateRef?: string;
-      bearerTokenRef?: string;
-    },
-    credentialsRef?: string,
-  ): TechUserAuthConfig {
-    if (authConfig?.availableMethods?.length) {
-      return {
-        ...authConfig,
-        enrollmentStatus: authConfig.enrollmentStatus ?? 'not-enrolled',
-      };
-    }
-
-    const preferredMethod = authConfig?.authMode ?? 'oauth2';
-    const techUserIdpNumber = authConfig?.techUserRef ?? credentialsRef ?? '';
-
-    return {
-      availableMethods: [preferredMethod],
-      preferredMethod,
-      techUserIdpNumber,
-      mtlsCertificateRef:
-        authConfig?.certificateRef && preferredMethod === 'mtls'
-          ? {
-              id: authConfig.certificateRef,
-              type: 'mtls-certificate',
-              profileId,
-            }
-          : undefined,
-      oauthClientIdRef:
-        authConfig?.bearerTokenRef && preferredMethod === 'oauth2'
-          ? {
-              id: authConfig.bearerTokenRef.replace('oauth2-bearer-token', 'oauth-client-id'),
-              type: 'oauth-client-id',
-              profileId,
-            }
-          : undefined,
-      oauthClientSecretRef:
-        authConfig?.bearerTokenRef && preferredMethod === 'oauth2'
-          ? {
-              id: authConfig.bearerTokenRef.replace('oauth2-bearer-token', 'oauth-client-secret'),
-              type: 'oauth-client-secret',
-              profileId,
-            }
-          : undefined,
-      tokenEndpoint: authConfig?.tokenEndpoint,
-      enrollmentStatus: authConfig ? 'enrolled' : 'not-enrolled',
-    };
-  }
-
-  private normalizeKafkaConfig(kafkaConfig: KafkaConfig): KafkaConfig {
-    const legacyTopics = kafkaConfig.topics as KafkaConfig['topics'] & { outputTopic?: string };
-
-    return {
-      ...kafkaConfig,
-      topics: {
-        inputTopic: kafkaConfig.topics.inputTopic,
-        outputTopicPattern: kafkaConfig.topics.outputTopicPattern,
-        outputTopicOverride: kafkaConfig.topics.outputTopicOverride ?? legacyTopics.outputTopic,
-      },
-    };
-  }
-
-  private normalizeApiConfigs(snapshot: ProfileStorageSnapshot): Record<ProfileEnvironment, SafApiConfig> {
-    const apiConfigs = { ...mockApiConfigs, ...(snapshot.apiConfigs ?? {}) };
-
-    snapshot.profiles.forEach((profile) => {
-      const legacyProfile = profile as SafProfile & {
-        apiConfig?: SafApiConfig;
-        generalApiConfig?: { baseUrl?: string; timeoutMs?: number };
-        publicKeyStoreApiConfig?: { baseUrl?: string };
-      };
-      const legacyApiConfig =
-        legacyProfile.apiConfig ??
-        (legacyProfile.generalApiConfig || legacyProfile.publicKeyStoreApiConfig
-          ? {
-              generalApiBaseUrl: legacyProfile.generalApiConfig?.baseUrl ?? mockApiConfigs[profile.environment].generalApiBaseUrl,
-              publicKeyStoreApiBaseUrl:
-                legacyProfile.publicKeyStoreApiConfig?.baseUrl ?? mockApiConfigs[profile.environment].publicKeyStoreApiBaseUrl,
-              timeoutMs: legacyProfile.generalApiConfig?.timeoutMs ?? mockApiConfigs[profile.environment].timeoutMs,
-            }
-          : undefined);
-
-      if (!snapshot.apiConfigs?.[profile.environment] && legacyApiConfig) {
-        apiConfigs[profile.environment] = legacyApiConfig;
-      }
-    });
-
-    return apiConfigs;
+        return [
+          environment,
+          {
+            ...mockSafEnvironments[environment],
+            ...savedEnvironment,
+            id: environment,
+            name: savedEnvironment?.name ?? mockSafEnvironments[environment].name,
+            baseUrl: savedEnvironment?.baseUrl ?? mockSafEnvironments[environment].baseUrl,
+            activeApiVersions: {
+              ...createDefaultActiveApiVersions(),
+              ...savedEnvironment?.activeApiVersions,
+            },
+            timeoutMs: savedEnvironment?.timeoutMs ?? mockSafEnvironments[environment].timeoutMs,
+          },
+        ];
+      }),
+    ) as Record<ProfileEnvironment, SafEnvironment>;
   }
 
   private persistSnapshot(): void {

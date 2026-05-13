@@ -1,10 +1,11 @@
+import { apiManagementConfig } from '../../data';
 import { resolveSafTopics } from '../../domain/saf';
-import type { KafkaConfig, ProfileEnvironment, SafApiConfig, SafProfile } from '../../models';
+import type { KafkaConfig, ProfileEnvironment, SafEnvironment, SafProfile } from '../../models';
 
 type ProfileSummaryProps = {
   profiles?: SafProfile[];
   activeProfileId?: string;
-  apiConfigs?: Partial<Record<ProfileEnvironment, SafApiConfig>>;
+  safEnvironments?: Partial<Record<ProfileEnvironment, SafEnvironment>>;
   kafkaConfigs?: Record<string, KafkaConfig>;
   onEditProfile?: (profileId: string) => void;
 };
@@ -12,7 +13,7 @@ type ProfileSummaryProps = {
 export function ProfileSummary({
   profiles = [],
   activeProfileId,
-  apiConfigs = {},
+  safEnvironments = {},
   kafkaConfigs = {},
   onEditProfile,
 }: ProfileSummaryProps) {
@@ -31,7 +32,7 @@ export function ProfileSummary({
       <div className="profile-list">
         {profiles.map((profile) => {
           const kafkaConfig = kafkaConfigs[profile.kafkaConfigId];
-          const apiConfig = apiConfigs[profile.environment] ?? profile.apiConfig;
+          const safEnvironment = safEnvironments[profile.environment];
           const topics = kafkaConfig ? resolveSafTopics(profile, kafkaConfig) : undefined;
           const isActive = profile.id === activeProfileId;
 
@@ -80,13 +81,15 @@ export function ProfileSummary({
                   <dd>{topics?.outputTopic ?? 'nicht konfiguriert'}</dd>
                 </div>
                 <div>
-                  <dt>General API</dt>
-                  <dd>{apiConfig?.generalApiBaseUrl ?? 'nicht konfiguriert'}</dd>
+                  <dt>API Base URL</dt>
+                  <dd>{safEnvironment?.baseUrl ?? 'nicht konfiguriert'}</dd>
                 </div>
-                <div>
-                  <dt>Public Key Store / PKI</dt>
-                  <dd>{apiConfig?.publicKeyStoreApiBaseUrl ?? 'nicht konfiguriert'}</dd>
-                </div>
+                {apiManagementConfig.apis.map((api) => (
+                  <div key={api.id}>
+                    <dt>{api.name} Version</dt>
+                    <dd>{safEnvironment?.activeApiVersions[api.id] ?? 'nicht konfiguriert'}</dd>
+                  </div>
+                ))}
                 <div>
                   <dt>TechUser Auth</dt>
                   <dd>{profile.techUserAuth?.preferredMethod ?? 'nicht konfiguriert'}</dd>

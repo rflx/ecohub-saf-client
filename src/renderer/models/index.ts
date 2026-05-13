@@ -9,6 +9,13 @@ export type {
 export type { LogEntry, LogLevel } from './log';
 export type { AppPage, NavigationItem } from './navigation';
 export type {
+  ActiveApiVersionMapping,
+  ApiId,
+  ApiManagementConfig,
+  ApiOperationDefinition,
+  ApiSpecDefinition,
+  ApiSupportStatus,
+  ApiVersion,
   AuthMode,
   BearerTokenInfo,
   ConnectionStatus,
@@ -18,8 +25,7 @@ export type {
   Profile,
   ProfileEnvironment,
   Receiver,
-  SafApiConfig,
-  SafEnvironmentApiConfig,
+  SafEnvironment,
   SafKeyReference,
   SafKeyReferences,
   SafProfile,

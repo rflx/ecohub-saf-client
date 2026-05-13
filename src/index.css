@@ -321,6 +321,93 @@ h2 {
   gap: 14px;
 }
 
+.api-management-list,
+.environment-version-grid,
+.warning-list {
+  display: grid;
+  gap: 14px;
+}
+
+.api-version-list {
+  display: grid;
+  gap: 10px;
+}
+
+.api-version-accordion {
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.api-version-accordion summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: #172026;
+  font-weight: 800;
+  list-style: none;
+}
+
+.api-version-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.api-version-accordion summary::before {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #607368;
+  border-bottom: 2px solid #607368;
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform 0.16s ease;
+}
+
+.api-version-accordion[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.api-version-accordion__status {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.api-version-accordion .profile-details {
+  margin: 0 14px 14px;
+  padding: 14px;
+  border: 1px solid #edf2ef;
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.status-label {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-label--supported {
+  color: #1f5b3a;
+  background: #dff3e7;
+}
+
+.status-label--experimental {
+  color: #6b4c00;
+  background: #fff1bf;
+}
+
+.status-label--deprecated {
+  color: #8d2d24;
+  background: #ffe0dc;
+}
+
 .profile-card__header {
   display: flex;
   align-items: flex-start;

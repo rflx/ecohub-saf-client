@@ -1,28 +1,5 @@
-import { DEFAULT_INPUT_TOPIC, DEFAULT_OUTPUT_TOPIC_PATTERN, resolveSafTopics } from '../domain/saf';
-import type { KafkaConfig, KafkaTopicSubscription, ProfileEnvironment, SafApiConfig, SafProfile } from '../models';
-
-export const mockApiConfigs: Record<ProfileEnvironment, SafApiConfig> = {
-  prod: {
-    generalApiBaseUrl: 'https://prod-api.example.invalid/general-api',
-    publicKeyStoreApiBaseUrl: 'https://prod-api.example.invalid/public-key-store-api',
-    timeoutMs: 10000,
-  },
-  iat: {
-    generalApiBaseUrl: 'https://iat-api.example.invalid/general-api',
-    publicKeyStoreApiBaseUrl: 'https://iat-api.example.invalid/public-key-store-api',
-    timeoutMs: 8000,
-  },
-  test: {
-    generalApiBaseUrl: 'https://test-api.example.invalid/general-api',
-    publicKeyStoreApiBaseUrl: 'https://test-api.example.invalid/public-key-store-api',
-    timeoutMs: 8000,
-  },
-  dev: {
-    generalApiBaseUrl: 'http://localhost:8080/general-api',
-    publicKeyStoreApiBaseUrl: 'http://localhost:8080/public-key-store-api',
-    timeoutMs: 5000,
-  },
-};
+import { DEFAULT_INPUT_TOPIC, DEFAULT_OUTPUT_TOPIC_PATTERN, resolveSafTopics } from '../domain/saf/topicResolver';
+import type { KafkaConfig, KafkaTopicSubscription, SafProfile } from '../models';
 
 export const mockKafkaConfigs: Record<string, KafkaConfig> = {
   'service-consumer-dev': {

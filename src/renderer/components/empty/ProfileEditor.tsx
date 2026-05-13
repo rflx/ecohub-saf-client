@@ -456,42 +456,11 @@ function StatusField({ active, label }: { active: boolean; label: string }) {
 
 function createFormState(profile?: SafProfile, kafkaConfig?: KafkaConfig): ProfileFormState {
   const id = profile?.id ?? `profile-${Date.now()}`;
-  const legacyKafkaConfig = kafkaConfig as
-    | (KafkaConfig & { topics: KafkaConfig['topics'] & { outputTopic?: string } })
-    | undefined;
-  const legacyProfile = profile as
-    | (SafProfile & {
-        credentialsRef?: { id?: string };
-        licenceKey?: string;
-        generalApiConfig?: { baseUrl?: string; timeoutMs?: number };
-        publicKeyStoreApiConfig?: { baseUrl?: string; timeoutMs?: number };
-        techUserAuth?: SafProfile['techUserAuth'] & {
-          authMode?: TechUserAuthMethod;
-          techUserRef?: string;
-          certificateRef?: string;
-          bearerTokenRef?: string;
-        };
-        apiConfig?: SafProfile['apiConfig'];
-        keyReferences?: SafProfile['keyReferences'];
-      })
-    | undefined;
-  const legacyPreferredMethod = legacyProfile?.techUserAuth?.authMode;
-  const preferredMethod =
-    legacyProfile?.techUserAuth?.preferredMethod ?? legacyPreferredMethod ?? 'oauth2';
-  const mtlsCertificateRef =
-    legacyProfile?.techUserAuth?.mtlsCertificateRef?.id ??
-    legacyProfile?.techUserAuth?.certificateRef ??
-    '';
-  const oauthClientIdRef = legacyProfile?.techUserAuth?.oauthClientIdRef?.id ?? '';
-  const oauthClientSecretRef =
-    legacyProfile?.techUserAuth?.oauthClientSecretRef?.id ??
-    legacyProfile?.techUserAuth?.bearerTokenRef ??
-    '';
-  const techUserIdpNumber =
-    legacyProfile?.techUserAuth?.techUserIdpNumber ??
-    legacyProfile?.techUserAuth?.techUserRef ??
-    legacyProfile?.credentialsRef?.id ??
-    '';
+  const preferredMethod = profile?.techUserAuth?.preferredMethod ?? 'oauth2';
+  const mtlsCertificateRef = profile?.techUserAuth?.mtlsCertificateRef?.id ?? '';
+  const oauthClientIdRef = profile?.techUserAuth?.oauthClientIdRef?.id ?? '';
+  const oauthClientSecretRef = profile?.techUserAuth?.oauthClientSecretRef?.id ?? '';
+  const techUserIdpNumber = profile?.techUserAuth?.techUserIdpNumber ?? '';
 
   return {
     id,
@@ -500,7 +469,7 @@ function createFormState(profile?: SafProfile, kafkaConfig?: KafkaConfig): Profi
     environment: profile?.environment ?? 'prod',
     description: profile?.description ?? '',
     ecoHubId: profile?.ecoHubId ?? '',
-    licenceKey: legacyProfile?.licenceKey ?? '',
+    licenceKey: profile?.licenceKey ?? '',
     standard: profile?.standard ?? 'saf',
     receiverEcoHubId: profile?.receiver.ecoHubId ?? '',
     receiverStandard: profile?.receiver.standard ?? 'saf',
@@ -514,26 +483,26 @@ function createFormState(profile?: SafProfile, kafkaConfig?: KafkaConfig): Profi
     mtlsCertificateRef,
     oauthClientIdRef,
     oauthClientSecretRef,
-    openIdConfigurationEndpoint: legacyProfile?.techUserAuth?.openIdConfigurationEndpoint ?? '',
-    tokenEndpoint: legacyProfile?.techUserAuth?.tokenEndpoint ?? '',
+    openIdConfigurationEndpoint: profile?.techUserAuth?.openIdConfigurationEndpoint ?? '',
+    tokenEndpoint: profile?.techUserAuth?.tokenEndpoint ?? '',
     kafkaClientId: kafkaConfig?.clientId ?? `ecohub-saf-client-${id}`,
     kafkaBrokers: kafkaConfig?.brokers.join(', ') ?? 'localhost:9092',
     kafkaSecurityProtocol: kafkaConfig?.securityProtocol ?? 'PLAINTEXT',
     kafkaSslEnabled: kafkaConfig?.sslEnabled ?? false,
     kafkaSaslMechanism: kafkaConfig?.saslMechanism ?? '',
     kafkaInputTopic: kafkaConfig?.topics.inputTopic ?? DEFAULT_INPUT_TOPIC,
-    kafkaOutputTopicOverride: legacyKafkaConfig?.topics.outputTopicOverride ?? legacyKafkaConfig?.topics.outputTopic ?? '',
+    kafkaOutputTopicOverride: kafkaConfig?.topics.outputTopicOverride ?? '',
     kafkaOutputTopicPattern: kafkaConfig?.topics.outputTopicPattern ?? DEFAULT_OUTPUT_TOPIC_PATTERN,
     kafkaConsumerGroupId: kafkaConfig?.consumerGroupId ?? '',
     kafkaCredentialsRef: kafkaConfig?.credentialsRef ?? `ref://tech-users/${id}`,
-    encryptionKeyPairRef: legacyProfile?.keyReferences?.encryption.keyPairRef ?? `ref://keys/${id}/encryption`,
-    encryptionPublicKeyRef: legacyProfile?.keyReferences?.encryption.publicKeyRef ?? `ref://keys/${id}/encryption/public`,
-    encryptionPrivateKeyRef: legacyProfile?.keyReferences?.encryption.privateKeyRef ?? `ref://keys/${id}/encryption/private`,
-    encryptionPublicKeyId: legacyProfile?.keyReferences?.encryption.publicKeyId ?? '',
-    signingKeyPairRef: legacyProfile?.keyReferences?.signing.keyPairRef ?? `ref://keys/${id}/signing`,
-    signingPublicKeyRef: legacyProfile?.keyReferences?.signing.publicKeyRef ?? `ref://keys/${id}/signing/public`,
-    signingPrivateKeyRef: legacyProfile?.keyReferences?.signing.privateKeyRef ?? `ref://keys/${id}/signing/private`,
-    signingPublicKeyId: legacyProfile?.keyReferences?.signing.publicKeyId ?? '',
+    encryptionKeyPairRef: profile?.keyReferences?.encryption.keyPairRef ?? `ref://keys/${id}/encryption`,
+    encryptionPublicKeyRef: profile?.keyReferences?.encryption.publicKeyRef ?? `ref://keys/${id}/encryption/public`,
+    encryptionPrivateKeyRef: profile?.keyReferences?.encryption.privateKeyRef ?? `ref://keys/${id}/encryption/private`,
+    encryptionPublicKeyId: profile?.keyReferences?.encryption.publicKeyId ?? '',
+    signingKeyPairRef: profile?.keyReferences?.signing.keyPairRef ?? `ref://keys/${id}/signing`,
+    signingPublicKeyRef: profile?.keyReferences?.signing.publicKeyRef ?? `ref://keys/${id}/signing/public`,
+    signingPrivateKeyRef: profile?.keyReferences?.signing.privateKeyRef ?? `ref://keys/${id}/signing/private`,
+    signingPublicKeyId: profile?.keyReferences?.signing.publicKeyId ?? '',
   };
 }
 

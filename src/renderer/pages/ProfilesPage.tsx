@@ -62,9 +62,9 @@ export function ProfilesPage() {
       )}
       <ProfileSummary
         activeProfileId={profileState.activeProfileId}
-        apiConfigs={profileState.apiConfigs}
         kafkaConfigs={profileState.kafkaConfigs}
         profiles={profileState.profiles}
+        safEnvironments={profileState.safEnvironments}
         onEditProfile={handleEditProfile}
       />
     </div>
