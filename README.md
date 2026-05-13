@@ -28,6 +28,22 @@ npm install
 npm start
 ```
 
+## OpenAPI Specs und Codegen
+
+SAF OpenAPI Specs werden lokal unter `specs/` versioniert. Die aktuelle Basis enthaelt Specs fuer:
+
+- `specs/general-api-v2.yaml`
+- `specs/public-key-store-api-v2.yaml`
+
+Die GitHub Raw URLs werden zentral in `src/saf/specs/specConfig.ts` gepflegt. Specs koennen synchronisiert und daraus TypeScript-Typen generiert werden:
+
+```bash
+npm run sync:specs
+npm run generate:api
+```
+
+`sync:specs` ueberschreibt lokale Specs nur nach einem erfolgreichen Download mit nicht-leerer OpenAPI-YAML-Response. `generate:api` erzeugt fuer alle in `specConfig.ts` konfigurierten Specs TypeScript-Typen unter `src/saf/generated/`.
+
 ## Projektstruktur
 
 - `src/main.ts`: Electron Main Process
@@ -38,6 +54,9 @@ npm start
 - `src/renderer/data`: Lokale Beispielprofile, Mock Events und Mock Logs
 - `src/renderer/services`: Lokaler ProfileStorage und Platzhalter-Clients
 - `src/renderer/transport/kafka`: Kafka-Transportgrenze fuer spaetere Implementierungen
+- `src/saf`: OpenAPI-basierte SAF-Spec-, Codegen- und Service-Struktur ohne Runtime-Netzwerklogik
+- `specs`: Lokal versionierte SAF OpenAPI Specs
+- `scripts/sync-specs.ts`: Spec-Synchronisation von GitHub Raw URLs
 - `docs/architecture.md`: Architekturuebersicht
 
 ## SAF-Konfiguration
@@ -54,6 +73,7 @@ npm start
 - `LocalMockSecretStore` kapselt lokale Mock-Secrets getrennt vom Profilmodell und kann spaeter durch eine macOS-Keychain-Implementierung ersetzt werden.
 - General API Endpoints dienen der Abfrage von Receiver / Service Agreements und werden pro Environment konfiguriert.
 - Public Key Store / PKI API Endpoints dienen dem Abruf fremder Public Keys und der Verwaltung eigener Public Keys und werden pro Environment konfiguriert.
+- SAF API Types werden aus lokalen OpenAPI Specs generiert. Der `GeneralApiService` unter `src/saf/services` bereitet die General-API-Operationen `EnrolTechUser`, `SafReceivers` und `SafInsurers` vor, fuehrt aber noch keine echten Requests aus.
 - SAF Profile fuehren getrennte Referenzen fuer Encryption- und Signing-Keypairs.
 - Default Input Topic: `eh.saf.in.v1`
 - Default Output Topic Pattern: `eh.saf.{ecoHubId}.{standard}.out.v1`

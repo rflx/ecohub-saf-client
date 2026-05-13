@@ -4,7 +4,7 @@ import type { KafkaConfig, ProfileEnvironment, SafApiConfig, SafProfile } from '
 type ProfileSummaryProps = {
   profiles?: SafProfile[];
   activeProfileId?: string;
-  apiConfigs?: Record<ProfileEnvironment, SafApiConfig>;
+  apiConfigs?: Partial<Record<ProfileEnvironment, SafApiConfig>>;
   kafkaConfigs?: Record<string, KafkaConfig>;
   onEditProfile?: (profileId: string) => void;
 };

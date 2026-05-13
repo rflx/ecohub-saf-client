@@ -1,0 +1,768 @@
+# © 2025 EcoHub AG. All rights reserved.
+# Publicly accessible for informational purposes only.
+# No rights to use, implement, modify, reproduce, distribute, or create derivative works without prior written authorization.
+# Swiss law applies. Jurisdiction: Zurich.
+
+openapi: 3.0.1
+info:
+  title: Public Key Store API
+  version: 2.0.0
+  x-ecohub-license: >
+    © 2025 EcoHub AG. Usage restricted. Prior written authorization required. Swiss law applies.
+  description: >
+    ## Security
+
+    All endpoints are protected and a TechUser certificate (mTLS) or 
+    bearer token must be provided. The certificate or oAuth2 credentials can be acquired using 
+    the /techUserEnrolment endpoint of the general API.
+    
+    ### Changes in Version 2.0.0
+      - Adjusted url path segment from /v1 to /v2
+      - PublicKeyResponse: property 'activatedAt' is now optional
+      - PublicKeyStatusType: Added value "Expired"
+      - SupportedProcesses:
+        - Renamed  processNames for Invoices, Commission and Contract
+        - Added processNames for mandate and claimsExperience.
+    
+    *changes in previous versions are available in the changelog file in GitHub*
+
+servers:
+  - url: 'https://services.test-myecohub.ch/publickeystore/v2'
+    description: EcoHub IAT Enviroment
+  - url: 'https://services.myecohub.ch/publickeystore/v2'
+    description: EcoHub PROD Enviroment
+paths:
+  /keys:
+    post:
+      tags:
+        - Key Management
+      summary: Upload new public keys for your membership.
+      operationId: UploadKey
+      requestBody:
+        description: List of encryption and signatures keys to be uploaded.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicKeyUploadRequest'
+      responses:
+        '200':
+          description: Public keys have been uploaded with success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyListResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorCode: "KEY_INVALID"
+                errorMessage: "Invalid encryption rsa public key, unable to parse"
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags:
+        - Key Management
+      summary: Get all keys for my membership.
+      operationId: GetKeys
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyListResponse'
+        '401':
+          description: Authorization (mTLS or JWT) missing
+  /keys/{keyId}/verify:
+    get:
+      tags:
+        - Key Management
+      summary: Get content to verify public key.
+      description: Returns the content to verify a public key. Can be called anytime.
+      operationId: GetEncryptedContent
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of the key you want to verify.
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyIdType'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyVerifyChallenge'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Key Management
+      summary: Submit content to verify public key.
+      description: Submit the verification response to verify your public key. A key can be
+        (re-)verified at any time. An unverified or "Failed" key cannot be activated. If
+        verification fails and the key is active, it will be deactivated.
+      operationId: VerifyPublicKeyByDecryptedContent
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of the key you want to verify.
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyIdType'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicKeyVerifyRequest'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyVerifyResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorCode: "REQUEST_INVALID"
+                errorMessage: "One or more input validation error occurred."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorCode: "KEY_NOT_FOUND"
+                errorMessage: "RSA encryption public key not found."
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /keys/{keyId}:
+    get:
+      tags:
+        - Key Management
+      summary: Get details of any specific key of my membership.
+      operationId: GetKeyById
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of one of your keys you want to get the details for.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_ID_INVALID"
+                "errorMessage": "Invalid keyId. It must be a valid GUID."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_NOT_FOUND"
+                "errorMessage": "Public key not found."
+    delete:
+      tags:
+        - Key Management
+      summary: Delete an inactive public key of my membership.
+      operationId: Delete
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of one of your keys you want to delete.
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyIdType'
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_ID_INVALID"
+                "errorMessage": "Invalid keyId. It must be a valid GUID."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "You can not delete the key of other member."
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_NOT_FOUND"
+                "errorMessage": "Public key not found."
+  /keys/{keyId}/activate:
+    post:
+      tags:
+        - Key Management
+      summary: Activate a specific key for my membership.
+      operationId: Activate
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of the key you want to activate.
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyIdType'
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_ID_INVALID"
+                "errorMessage": "Invalid keyId. It must be a valid GUID."
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "You can not activate the key of other member."
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_NOT_FOUND"
+                "errorMessage": "Public key not found."
+  /keys/{keyId}/deactivate:
+    post:
+      tags:
+        - Key Management
+      summary: Deactivate a specific key for my membership.
+      operationId: Deactivate
+      parameters:
+        - name: keyId
+          in: path
+          description: ID of the key you want to deactivate.
+          required: true
+          schema:
+            $ref: '#/components/schemas/PublicKeyIdType'
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_ID_INVALID"
+                "errorMessage": "Invalid keyId. It must be a valid GUID."
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "You can not deactivate the key of other member."
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "KEY_NOT_FOUND"
+                "errorMessage": "Public key not found."
+  /members/{idpNumber}/keys:
+    get:
+      tags:
+        - Key Discovery
+      summary: Get the active public keys of the receiving party
+      description: Get the active public keys, for encryption and signing, of a member by idp-number with whom my membership has a service agreement.
+      operationId: GetActivePublicKeyOfMemberByIdpNumber
+      parameters:
+        - name: idpNumber
+          in: path
+          description: IDP number of one of the TechUsers of the receiving party. If the receiving party has multiple TechUsers, any of the IDP numbers can be submitted.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyListResponse'
+        '204':
+          description: Member does not have any active keys
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "REQUEST_INVALID"
+                "errorMessage": "The received tech user IDP-Number IDP7462285x format is not valid."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "No tech user found with the IDP_Number IDP7462286"
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /members/{idpNumber}/keys/{keyType}:
+    get:
+      tags:
+        - Key Discovery
+      summary: Get the active encryption or signing public key of the receiving party
+      description: Get the active encryption or signing public key of a member by idp-number and keyType with whom my membership has a service agreement.
+      operationId: GetActivePublicKeyOfMemberByOperationAndIdpNumber
+      parameters:
+        - name: idpNumber
+          in: path
+          description: IDP number of one of the TechUsers of the receiving party. If the receiving party has multiple TechUsers, any of the IDP numbers can be submitted.
+          required: true
+          schema:
+            type: string
+        - name: keyType
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/PublicKeyTypeType"
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyListResponse'
+        '204':
+          description: Member does not have any active keys
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "REQUEST_INVALID"
+                "errorMessage": "The received tech user IDP-Number IDP7462285x format is not valid."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "No tech user found with the IDP_Number IDP7462286"
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /members/{idpNumber}/keys/signature/{version}:
+    get:
+      tags:
+        - Key Discovery
+      summary: Get the signing public key of the receiving party with a specific version
+      description: Get the signing public key of a member by idp-number and version with whom my membership has a service agreement.
+        The key with the specified version does not need to be active. There may be instances where multiple keys with the same version
+        but different 'supportedProcesses' are returned.
+      operationId: GetPublicKeyOfMemberByOperationAndIdpNumberAndVersion
+      parameters:
+        - name: idpNumber
+          in: path
+          description: IDP number of one of the TechUsers of the receiving party. If the receiving party has multiple TechUsers, any of the IDP numbers can be submitted.
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/PublicKeyVersionType"
+      responses:
+        '200':
+          description: Success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicKeyListResponse'
+              example:
+                - keyType: "signature"
+                  keyId: "df4eee5b-8552-48f0-916a-62ee4e1e6fbc"
+                  membershipId: "6d490403-a95e-4900-967c-8eb65812036d"
+                  version: '1.0'
+                  key: "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE/xcCNJce71JRlmPEjbCgiNARsq7Ea6dm\n+uWufrHaJpl89esF3oDFlTusALWlL48dxikma1d8+IkhqbcMh+s56Uoeet4qzAqd\ntqGS4kxcYR/A7KKhtUsM9npnQsoEdiYD\n-----END PUBLIC KEY-----"
+                  createdAt: "2025-05-05T08:19:42.631Z"
+                  lastUpdatedAt: "0001-01-01T00:00:00.000Z"
+                  activatedAt: "0001-01-01T00:00:00.000Z"
+                  expiryDate: "2026-05-05T10:19:42.631Z"
+                  ecoHubStatus: "Created"
+                  verificationStatus: "Verified"
+                  supportedProcesses:
+                    - processName: "offer.nlpi"
+                      processVersion: "0.3.0"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "REQUEST_INVALID"
+                "errorMessage": "The received tech user IDP-Number IDP7462285x format is not valid."
+        '401':
+          description: Authorization (mTLS or JWT) missing
+        '404':
+          description: The member with the specified IDP number of the version of the key were not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                "errorCode": "ERROR"
+                "errorMessage": "No tech user found with the IDP_Number IDP7462286"
+components:
+  schemas:
+    PublicKeyUploadRequest:
+      type: array
+      items:
+        type: object
+        properties:
+          version:
+            $ref: "#/components/schemas/PublicKeyVersionType"
+          keyType:
+            $ref: "#/components/schemas/PublicKeyTypeType"
+          key:
+            $ref: "#/components/schemas/PublicKeyDataType"
+          expireInDays:
+            $ref: "#/components/schemas/ExpireInDaysType"
+        required:
+          - expireInDays
+          - key
+          - version
+        additionalProperties: false
+      minItems: 1
+    PublicKeyListResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/PublicKeyResponse'
+      example:
+        - keyType: "encryption"
+          keyId: "fa0f8e74-8151-4a05-a07c-03a9f7410361"
+          membershipId: "6d490403-a95e-4900-967c-8eb65812036d"
+          version: "1.0"
+          key: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhgbfE7PdCHfiPtvdC1rv\nrzF//bPBbQTofH6lVKmLpweliyJkir+FQZ8v+6XfeGc4yNBd3OMsh+lIxxJxV0ox\no57owsqMYPm7zAGOsZm/tb8SX29+NCJTx3IY07TPix8gD096batkfH7B9R3cXp3f\nXTx3z8rhKA0Q7oNu2xMbUv+MEP5LBISWCdhoYOvBLaiZHh/XlZB1VHDPTK/ZV+OO\nkw/ubAobawfgE5dlXuym8LqwAcM9QKs/cVajDT1paOb1nZo9/cfuQjQLWtty0exx\n+5QgUsdzMOCAUBfkaq+bVCHMbvd/R+BnUHalcgdQZ2X8R0fnbP3BJDdTqEz5kFPm\nXQIDAQAB\n-----END PUBLIC KEY-----"
+          createdAt: "2025-04-08T10:22:52.128Z"
+          lastUpdatedAt: "2025-04-08T12:14:31.842Z"
+          activatedAt: "0001-01-01T00:00:00.000Z"
+          expiryDate: "2026-04-08T12:22:52.128Z"
+          ecoHubStatus: "Created"
+          verificationStatus: "Verified"
+          supportedProcesses:
+            - processName: "offer.nlpi"
+              processVersion: "0.3.0"
+        - keyType: "signature"
+          keyId: "df4eee5b-8552-48f0-916a-62ee4e1e6fbc"
+          membershipId: "6d490403-a95e-4900-967c-8eb65812036d"
+          version: '1.0'
+          key: "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE/xcCNJce71JRlmPEjbCgiNARsq7Ea6dm\n+uWufrHaJpl89esF3oDFlTusALWlL48dxikma1d8+IkhqbcMh+s56Uoeet4qzAqd\ntqGS4kxcYR/A7KKhtUsM9npnQsoEdiYD\n-----END PUBLIC KEY-----"
+          createdAt: "2025-05-05T08:19:42.631Z"
+          lastUpdatedAt: "0001-01-01T00:00:00.000Z"
+          activatedAt: "0001-01-01T00:00:00.000Z"
+          expiryDate: "2026-05-05T10:19:42.631Z"
+          ecoHubStatus: "Created"
+          verificationStatus: "Verified"
+          supportedProcesses:
+            - processName: "offer.nlpi"
+              processVersion: "0.3.0"
+    PublicKeyResponse:
+      type: object
+      properties:
+        keyId:
+          $ref: "#/components/schemas/PublicKeyIdType"
+        membershipId:
+          $ref: "#/components/schemas/MembershipIdType"
+        version:
+          $ref: "#/components/schemas/PublicKeyVersionType"
+        keyType:
+          $ref: "#/components/schemas/PublicKeyTypeType"
+        key:
+          $ref: "#/components/schemas/PublicKeyDataType"
+        supportedProcesses:
+          $ref: "#/components/schemas/SupportedProcessesType"
+        createdAt:
+          $ref: "#/components/schemas/CreatedAtType"
+        lastUpdatedAt:
+          $ref: "#/components/schemas/LastUpdatedAtType"
+        activatedAt:
+          $ref: "#/components/schemas/ActivatedAtType"
+        expiryDate:
+          $ref: "#/components/schemas/ExpiryDateType"
+        ecoHubStatus:
+          $ref: "#/components/schemas/PublicKeyStatusType"
+        verificationStatus:
+          $ref: "#/components/schemas/VerificationStatusType"
+      example:
+        keyType: "encryption"
+        keyId: "fa0f8e74-8151-4a05-a07c-03a9f7410361"
+        membershipId: "6d490403-a95e-4900-967c-8eb65812036d"
+        version: "1.0"
+        key: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhgbfE7PdCHfiPtvdC1rv\nrzF//bPBbQTofH6lVKmLpweliyJkir+FQZ8v+6XfeGc4yNBd3OMsh+lIxxJxV0ox\no57owsqMYPm7zAGOsZm/tb8SX29+NCJTx3IY07TPix8gD096batkfH7B9R3cXp3f\nXTx3z8rhKA0Q7oNu2xMbUv+MEP5LBISWCdhoYOvBLaiZHh/XlZB1VHDPTK/ZV+OO\nkw/ubAobawfgE5dlXuym8LqwAcM9QKs/cVajDT1paOb1nZo9/cfuQjQLWtty0exx\n+5QgUsdzMOCAUBfkaq+bVCHMbvd/R+BnUHalcgdQZ2X8R0fnbP3BJDdTqEz5kFPm\nXQIDAQAB\n-----END PUBLIC KEY-----"
+        createdAt: "2025-04-08T10:22:52.128Z"
+        lastUpdatedAt: "2025-04-08T12:14:31.842Z"
+        activatedAt: "0001-01-01T00:00:00.000Z"
+        expiryDate: "2026-04-08T12:22:52.128Z"
+        ecoHubStatus: "Created"
+        verificationStatus: "Verified"
+        supportedProcesses:
+          - processName: "offer.nlpi"
+            processVersion: "0.3.0"
+      additionalProperties: true
+      required:
+        - keyId
+        - membershipId
+        - version
+        - keyType
+        - key
+        - createdAt
+        - lastUpdatedAt
+        - expiryDate
+        - ecoHubStatus
+    PublicKeyVerifyChallenge:
+      type: object
+      properties:
+        keyId:
+          $ref: "#/components/schemas/PublicKeyIdType"
+        keyType:
+          $ref: "#/components/schemas/PublicKeyTypeType"
+        verificationContent:
+          type: string
+          description: When verifying an encryption key, this contains a random string which has
+            been encrypted with your active public key using RSA with OAEP_SHA256 padding and encoded
+            as base64. The value must be decoded and decrypted, so that the original plain text
+            can be used as input for the POST /verify API call.
+            When verifying a signature key, this contains a random plaintext string. Submit the signature of the plaintext
+            to the POST /verify endpoint.
+      required:
+        - keyId
+        - keyType
+        - verificationContent
+    PublicKeyVerifyRequest:
+      type: object
+      properties:
+        verifiedContent:
+          type: string
+          minLength: 1
+          description: To verify an RSA key, retrieve the encrypted payload from GET /verify. Decrypt the
+            payload using your active encryption key and submit the decrypted plaintext.
+            To verify a signature key, retrieve the plaintext payload from GET /verify. Sign this payload using the
+            ECDSA algorithm with the secp384r1 curve, the SHA-384 hash function, and encode the resulting signature
+            in ASN.1 DER format. Base64-encode the signature (standard base64, not URL-safe), and submit it in the request.
+            If you're not using a standard library which handles creation of the ASN.1 DER format, make sure that the r and s
+            values are encoded using the 2's complement (as specified by ITU X.690). As such, a 0x00 byte must be
+            prepended to any values where the most significant bit is a 1.
+      additionalProperties: false
+      required:
+        - verifiedContent
+    PublicKeyDataType:
+      minLength: 1
+      description: For encryption keys, this is 2048-bit RSA public key using the SPKI (SubjectPublicKeyInfo) structure, formatted in PEM.
+        For signature keys, this is an Elliptic Curve (EC) public key using the secp384r1 curve, also using the SPKI structure and formatted in PEM.
+        In both cases, the key must be a plain string, including the full PEM headers and footers and all original line breaks.
+      type: string
+      nullable: false
+      example: "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnHzh51ti/7VGUb/GHl1o\nAwL7eTJREdq0A5jCA2viLmjcdEUUjFtcUK6fvySR6ukygLnRlMA1fvzy1xEKlyfu\ntRjb3D5gNiHVqmOHsDG7GTkMAn8XVM4061ad1mhOrjr+Gmd1jaWBTExjJus1PkbG\n4vY5BDVg5nZw4QuyxnFQG96ADIss9n9cp4Sz8STi3bLyPoT8N23/5jpn7kZpbCbz\nG0TZrgzIp3JsABYQ5bxZFmG6Leca3gUEblzAgTyafjYrcj1CQTZLvDezja/aiYzY\nR5qIhFIXBVxBr/ePqmEUUIu6IsXsh2AiQQF2xykwPXsQbtcr+En2MnfNicK/3fhN\nrQIDAQAB\n-----END PUBLIC KEY-----"
+    PublicKeyVersionType:
+      type: string
+      description: Version of the public key
+      nullable: false
+    PublicKeyIdType:
+      description: Unique identifier of the public key stored in EcoHub
+      type: string
+      format: uuid
+      nullable: false
+    MembershipIdType:
+      description: Membership id the public key belongs to
+      type: string
+      format: uuid
+      nullable: false
+    CreatedAtType:
+      description: Timestamp when the public key has been created
+      type: string
+      format: date-time
+      nullable: false
+    LastUpdatedAtType:
+      description: Timestamp when the public key data has been updated the last time
+      type: string
+      format: date-time
+      nullable: false
+    ActivatedAtType:
+      description: Timestamp when the public key has been activated. If the key has not been activated, a default timestamp (0001-01-01T00:00:00.000Z) will be returned.
+      type: string
+      format: date-time
+      nullable: false
+    ExpiryDateType:
+      description: Timestamp when the public key will expire
+      type: string
+      format: date-time
+      nullable: false
+    ExpireInDaysType:
+      type: string
+      enum: [ "7", "14", "30", "90", "180", "365" ]
+      description: The expiration time, that defines the expiration date of the public key in EcoHub
+      nullable: false
+    PublicKeyStatusType:
+      description: EcoHub status of the public key
+      type: string
+      enum: [ "Created", "Activated", "Deactivated", "Expired" ]
+      nullable: false
+    VerificationStatusType:
+      description: Verification status of the public key. A key can be (re-)verified at any time.
+        An unverified or invalid/corrupt (status 'Failed') key cannot be activated. A "Failed"
+        verification will deactivate an active key.
+      type: string
+      enum: [ "Unverified", "Verified", "Failed" ]
+      nullable: false
+    PublicKeyTypeType:
+      description: Specifies the type of the key.
+      type: string
+      enum: [ "encryption", "signature" ]
+      default: "encryption"
+    PublicKeyVerifyResponse:
+      type: object
+      properties:
+        verificationStatus:
+          type: string
+          enum: [ "Success", "Fail" ]
+          description: Status of the verification check
+          nullable: false
+          example: Success/Fail
+    ErrorResponse:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          enum: [ "KEY_VERSION_EXISTS", "KEY_INVALID", "REQUEST_INVALID",
+                  "KEY_ID_INVALID", "KEY_NOT_FOUND", "VERIFICATION_NOT_STARTED",
+                  "UNAUTHORIZED", "NO_SERVICE_AGREEMENT", "KEY_IS_ACTIVE", "ERROR" ]
+          description: Code identifying the type of error
+          example: "KEY_VERSION_EXISTS"
+        errorMessage:
+          type: string
+          description: Message detailing the error
+          example: "Key version already exists for this membership"
+    SupportedProcessesType:
+      description: Restricts the processes this key can be used for. If omitted, this key is not restricted and can
+        be used for any process. When retrieving a key for encryption / checking a
+        signature, make sure that the key matches the processName and processVersion of the event.
+      type: array
+      minItems: 1
+      items:
+        type: object
+        properties:
+          processName:
+            $ref: "#/components/schemas/ProcessNameType"
+          processVersion:
+            description: Restricts the key to a particular version of the used core process. If omitted, the version is
+              not restricted and the key can be used for any version of the indicated process.
+            type: string
+            pattern: "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+        required:
+          - processName
+        additionalProperties: false
+    ProcessNameType:
+      description: Identifier of the core process
+      type: string
+      enum:
+        - offer.nlpi
+        - invoice
+        - commission
+        - contract
+        - mandate
+        - claimsExperience

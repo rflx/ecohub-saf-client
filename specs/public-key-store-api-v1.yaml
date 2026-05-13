@@ -1,0 +1,37 @@
+openapi: 3.0.3
+info:
+  title: SAF Public Key Store API
+  version: 1.0.0
+  description: Local placeholder OpenAPI spec for SAF Public Key Store API v1. Replace via scripts/sync-specs.ts when the official GitHub Raw URL is available.
+servers:
+  - url: https://example.invalid/saf/public-key-store-api/v1
+    description: Placeholder URL, not a real SAF endpoint.
+paths:
+  /public-keys:
+    get:
+      operationId: getPublicKeys
+      summary: List public keys
+      responses:
+        '200':
+          description: Available public keys.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicKeyReference'
+components:
+  schemas:
+    PublicKeyReference:
+      type: object
+      required:
+        - id
+        - usage
+      properties:
+        id:
+          type: string
+        usage:
+          type: string
+          enum:
+            - encryption
+            - signing

@@ -10,6 +10,7 @@ EcoHub SAF Client ist als lokale Desktop-App auf Basis von Electron, React und T
 - SAF Domain: enthaelt fachliche SAF-Regeln wie die Aufloesung von Input- und Output-Topics.
 - Models: beschreiben SAF Profile, TechUser Auth und Enrollment, Environment-API-Konfigurationen, Kafka-Konfigurationen, Topics, SAF Events und Logs.
 - Services: kapseln lokalen ProfileStorage, TechUser Enrollment, SecretStore sowie Platzhalter-Clients fuer General API, Public Key Store API und Kafka.
+- SAF OpenAPI Layer: verwaltet lokal versionierte OpenAPI Specs, synchronisiert Specs aus externen GitHub Raw URLs und generiert TypeScript-Typen fuer SAF APIs.
 - Kafka Transport: markiert die technische Grenze fuer eine spaetere echte Kafka-Implementierung.
 - Mock Data: liefert lokal testbare Beispielprofile, Events und Logs ohne externe Abhaengigkeiten.
 
@@ -29,6 +30,14 @@ Der SAF Topic Resolver verwendet standardmaessig `eh.saf.in.v1` als Input Topic 
 
 Eine spaetere Kafka- oder API-Anbindung sollte hinter den vorhandenen Platzhalter-Clients liegen und nicht direkt in UI-Komponenten implementiert werden.
 
+## SAF OpenAPI Layer
+
+Lokale OpenAPI Specs liegen unter `specs/`. Die zentrale Spec-Konfiguration steht in `src/saf/specs/specConfig.ts` und enthaelt ID, Anzeigenamen, GitHub Raw Source URL, lokalen Spec-Pfad und TypeScript-Output-Pfad. Aktuell sind `general-api-v2` und `public-key-store-api-v2` vorbereitet.
+
+`scripts/sync-specs.ts` synchronisiert die konfigurierten YAML-Specs. Pro Spec werden Name, Source URL, Output Path und HTTP Status geloggt. Netzwerkfehler, 404-Antworten, leere Responses und Responses ohne OpenAPI-YAML-Signatur werden als Fehler behandelt; lokale Specs werden nur nach erfolgreichem Download ueberschrieben.
+
+Generierte TypeScript-Typen liegen unter `src/saf/generated/`. `scripts/generate-api.ts` iteriert ueber die in `specConfig.ts` konfigurierten Specs und erzeugt per `npm run generate:api` die passenden TypeScript-Dateien, darunter `general-api-v2.ts` und `public-key-store-api-v2.ts`. Runtime-Clients und Services sind unter `src/saf/clients` und `src/saf/services` vorbereitet. Der `GeneralApiService` beschreibt die Operationen `EnrolTechUser`, `SafReceivers` und `SafInsurers`, fuehrt aber bewusst noch keine echten HTTP-Requests aus.
+
 ## Konfigurationsgrenzen
 
 - SAF Domain: Profile mit SAF Identity inklusive `licenceKey`, Receiver, TechUser Auth und Enrollment-Referenzen, Key-Referenzen und Topic-Resolver.
@@ -36,12 +45,14 @@ Eine spaetere Kafka- oder API-Anbindung sollte hinter den vorhandenen Platzhalte
 - Kafka Transport: Broker-, Security-, Consumer-Group- und Topic-Konfiguration.
 - UI: Profilanzeige, aktive Profilauswahl und lokale Konfiguration fuer SAF Identity, Tech User Enrollment, TechUser Auth, Kafka Topics, API Environments und Key References.
 - API Clients: Platzhalter fuer General API und Public Key Store API ohne Netzwerkaufrufe.
+- OpenAPI Specs: Lokal versionierte YAML-Dateien unter `specs/`, synchronisierbar aus externen GitHub Raw URLs.
 
 ## Grenzen der aktuellen Basis
 
 - Keine echte Kafka-Verbindung
 - Keine echte API-Verbindung
 - Keine echte OAuth-Token-Verbindung
+- Keine echte OpenAPI-basierte Runtime-Client-Verbindung
 - Keine echte Zertifikatsdatei oder Keychain-Persistenz
 - Keine Persistenz ausserhalb des Renderer-`localStorage`
 - Keine Secrets oder produktiven Konfigurationen
