@@ -1,14 +1,30 @@
-import type { operations } from '../generated/general-api-2.0.0';
+import type { operations as GeneralApiOperationsV120 } from '../generated/general-api-1.2.0';
+import type { operations as GeneralApiOperationsV200 } from '../generated/general-api-2.0.0';
 import { SafApiHttpService } from './SafApiHttpService';
 
+export type GeneralApiVersion = '1.2.0' | '2.0.0';
+
+type EnrolTechUserRequestV120 =
+  GeneralApiOperationsV120['EnrolTechUser']['requestBody']['content']['application/json'];
+type EnrolTechUserResponseV120 =
+  GeneralApiOperationsV120['EnrolTechUser']['responses']['200']['content']['application/json'];
+
+type EnrolTechUserRequestV200 =
+  GeneralApiOperationsV200['EnrolTechUser']['requestBody']['content']['application/json'];
+type EnrolTechUserResponseV200 =
+  GeneralApiOperationsV200['EnrolTechUser']['responses']['200']['content']['application/json'];
+
 export type EnrolTechUserRequest =
-  operations['EnrolTechUser']['requestBody']['content']['application/json'];
+  | EnrolTechUserRequestV120
+  | EnrolTechUserRequestV200;
 
 export type EnrolTechUserResponse =
-  operations['EnrolTechUser']['responses']['200']['content']['application/json'];
+  | EnrolTechUserResponseV120
+  | EnrolTechUserResponseV200;
 
 export type GeneralApiRequestOptions = {
   url: string;
+  apiVersion: string;
   timeoutMs: number;
 };
 
@@ -30,7 +46,14 @@ export class GeneralApiService extends SafApiHttpService {
     request: EnrolTechUserRequest,
     options: GeneralApiRequestOptions,
   ): Promise<EnrolTechUserResponse> {
-    return this.postJson<EnrolTechUserResponse>(options.url, request, options.timeoutMs);
+    switch (options.apiVersion) {
+      case '1.2.0':
+        return this.postJson<EnrolTechUserResponseV120>(options.url, request, options.timeoutMs);
+      case '2.0.0':
+        return this.postJson<EnrolTechUserResponseV200>(options.url, request, options.timeoutMs);
+      default:
+        throw new Error(`General API Version ${options.apiVersion} wird fuer Tech User Enrollment nicht unterstuetzt.`);
+    }
   }
 
   protected createApiError(status: number, responseBody: unknown): Error {

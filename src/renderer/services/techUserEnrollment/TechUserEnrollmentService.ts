@@ -1,7 +1,7 @@
 import type { TechUserEnrollmentRequest, TechUserEnrollmentResponse } from '../../models';
 import { GeneralApiService, type EnrolTechUserRequest } from '../../../saf/services';
 import packageJson from '../../../../package.json';
-import { ApiRuntimeResolver } from '../../domain/saf';
+import { ApiRuntimeResolver, type ApiRuntimeResolution } from '../../domain/saf';
 import { profileStorageService } from '../profileStorage';
 
 export interface TechUserEnrollmentService {
@@ -20,14 +20,7 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
   constructor(private readonly generalApiService = new GeneralApiService()) {}
 
   resolveEnrollmentUrl(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): string {
-    const snapshot = profileStorageService.getSnapshot();
-    const resolver = new ApiRuntimeResolver(snapshot.safEnvironments, snapshot.profiles);
-
-    return resolver.resolve({
-      environmentId: request.environmentId,
-      apiId: 'general-api',
-      operationId: 'techUserEnrolment',
-    }).resolvedUrl;
+    return this.resolveEnrollmentEndpoint(request).resolvedUrl;
   }
 
   async enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse> {
@@ -44,7 +37,7 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
       throw new Error(`General API Base URL fuer ${environment.name} ist nicht konfiguriert.`);
     }
 
-    const resolvedUrl = this.resolveEnrollmentUrl(request);
+    const resolvedEndpoint = this.resolveEnrollmentEndpoint(request);
     const enrolmentRequest: EnrolTechUserRequest = {
       idpUserId: request.techUserIdpNumber.trim(),
       password: request.password,
@@ -55,7 +48,8 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
       userAgent: createEnrollmentUserAgent(),
     };
     const response = await this.generalApiService.enrolTechUser(enrolmentRequest, {
-      url: resolvedUrl,
+      url: resolvedEndpoint.resolvedUrl,
+      apiVersion: resolvedEndpoint.apiVersion,
       timeoutMs: environment.timeoutMs,
     });
 
@@ -78,6 +72,17 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
         : undefined,
       enrolledAt: new Date().toISOString(),
     };
+  }
+
+  private resolveEnrollmentEndpoint(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): ApiRuntimeResolution {
+    const snapshot = profileStorageService.getSnapshot();
+    const resolver = new ApiRuntimeResolver(snapshot.safEnvironments, snapshot.profiles);
+
+    return resolver.resolve({
+      environmentId: request.environmentId,
+      apiId: 'general-api',
+      operationId: 'techUserEnrolment',
+    });
   }
 }
 
