@@ -581,7 +581,7 @@ h2 {
   color: #8d2d24;
 }
 
-.enrollment-console {
+.app-console {
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -589,32 +589,37 @@ h2 {
   border-left-width: 4px;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition:
+    background-color 0.45s ease,
+    border-color 0.45s ease,
+    box-shadow 0.45s ease;
 }
 
-.enrollment-console--idle {
+.app-console--idle {
   border-left-color: #8b9a90;
 }
 
-.enrollment-console--running {
+.app-console--running {
   border-left-color: #2f7d50;
 }
 
-.enrollment-console--success {
+.app-console--success {
   border-left-color: #2f7d50;
   background: #f7fcf9;
 }
 
-.enrollment-console--warning {
+.app-console--warning {
   border-left-color: #b78300;
   background: #fffaf0;
 }
 
-.enrollment-console--error {
+.app-console--error {
   border-left-color: #c46c61;
   background: #fffafa;
 }
 
-.enrollment-console__header {
+.app-console__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -625,13 +630,13 @@ h2 {
   text-transform: uppercase;
 }
 
-.enrollment-console__header time {
+.app-console__header time {
   flex: 0 0 auto;
   color: #607368;
   font-size: 12px;
 }
 
-.enrollment-console pre {
+.app-console pre {
   max-height: 220px;
   margin: 0;
   overflow: auto;
@@ -645,6 +650,10 @@ h2 {
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.enrollment-console {
+  grid-column: 1 / -1;
 }
 
 .profile-details {

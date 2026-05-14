@@ -301,6 +301,7 @@ export function ProfileEditor({
               </button>
             </div>
           </div>
+          <EnrollmentConsole state={enrollmentConsole} />
           <StatusField label="mTLS certificate available" active={Boolean(enrollmentResponse?.mtlsCertificate || formState.mtlsCertificateRef)} />
           <StatusField label="OAuth2 credentials available" active={Boolean(enrollmentResponse?.oauth2Credentials || formState.oauthClientIdRef)} />
           <SelectField
@@ -316,7 +317,6 @@ export function ProfileEditor({
           <TextField label="OAuth2 Token Endpoint" value={formState.tokenEndpoint} onChange={(value) => handleChange('tokenEndpoint', value)} />
         </div>
         {enrollmentError && <p className="form-message form-message--error">{enrollmentError}</p>}
-        <EnrollmentConsole state={enrollmentConsole} />
       </FormSection>
 
     </form>
@@ -412,8 +412,8 @@ function maskSecretValue(value?: string): string {
 
 function EnrollmentConsole({ state }: { state: EnrollmentConsoleState }) {
   return (
-    <div className={`enrollment-console enrollment-console--${state.status}`}>
-      <div className="enrollment-console__header">
+    <div className={`app-console app-console--${state.status} enrollment-console`}>
+      <div className="app-console__header">
         <span>{state.title}</span>
         {state.timestamp && <time dateTime={state.timestamp}>{formatConsoleTimestamp(state.timestamp)}</time>}
       </div>
