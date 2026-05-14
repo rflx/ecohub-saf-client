@@ -1,4 +1,4 @@
-export { GeneralApiService } from './GeneralApiService';
+export { GeneralApiError, GeneralApiService } from './GeneralApiService';
 export type {
   EnrolTechUserRequest,
   EnrolTechUserResponse,

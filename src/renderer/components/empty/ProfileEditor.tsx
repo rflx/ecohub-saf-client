@@ -12,13 +12,14 @@ import type {
   TechUserEnrollmentResponse,
 } from '../../models';
 import { localSecretStore, techUserEnrollmentService } from '../../services';
+import { GeneralApiError } from '../../../saf/services';
 
 type ProfileEditorProps = {
   profile?: SafProfile;
   kafkaConfig?: KafkaConfig;
   onCancel: () => void;
   onDelete?: (profileId: string) => void;
-  onSave: (profile: SafProfile, kafkaConfig: KafkaConfig) => void;
+  onSave: (profile: SafProfile, kafkaConfig: KafkaConfig, options?: { keepEditorOpen?: boolean }) => void;
 };
 
 type ProfileFormState = {
@@ -75,6 +76,13 @@ type ProfileSavePayload = {
   kafkaConfig: KafkaConfig;
 };
 
+type EnrollmentConsoleState = {
+  status: 'idle' | 'running' | 'success' | 'warning' | 'error';
+  title: string;
+  timestamp?: string;
+  content: unknown;
+};
+
 const profileEnvironments: ProfileEnvironment[] = ['prod', 'iat', 'test', 'dev'];
 const profileTypes: ServiceProfileType[] = ['consumer', 'provider'];
 const authMethods: TechUserAuthMethod[] = ['mtls', 'oauth2'];
@@ -90,12 +98,29 @@ export function ProfileEditor({
   const [formState, setFormState] = useState<ProfileFormState>(initialState);
   const [enrollmentResponse, setEnrollmentResponse] = useState<TechUserEnrollmentResponse | undefined>();
   const [enrollmentError, setEnrollmentError] = useState<string | undefined>();
+  const [isEnrollmentRunning, setIsEnrollmentRunning] = useState(false);
+  const [enrollmentConsole, setEnrollmentConsole] = useState<EnrollmentConsoleState>({
+    status: 'idle',
+    title: 'Bereit fuer Tech User Enrollment',
+    content: {
+      message: 'Noch kein Enrollment ausgefuehrt.',
+    },
+  });
+  const editorSessionKey = profile?.id ?? 'new-profile';
 
   useEffect(() => {
     setFormState(initialState);
     setEnrollmentResponse(undefined);
     setEnrollmentError(undefined);
-  }, [initialState]);
+    setIsEnrollmentRunning(false);
+    setEnrollmentConsole({
+      status: 'idle',
+      title: 'Bereit fuer Tech User Enrollment',
+      content: {
+        message: 'Noch kein Enrollment ausgefuehrt.',
+      },
+    });
+  }, [editorSessionKey]);
 
   const handleChange = (field: keyof ProfileFormState, value: string | boolean) => {
     setFormState((current) => ({
@@ -123,22 +148,33 @@ export function ProfileEditor({
   const canSaveProfile =
     Boolean(formState.id.trim()) &&
     Boolean(formState.name.trim());
-  const canRunEnrollment =
-    canSaveProfile &&
-    Boolean(formState.licenceKey.trim()) &&
-    Boolean(formState.techUserIdpNumber.trim()) &&
-    Boolean(formState.enrollmentPassword.trim()) &&
-    Boolean(formState.identificationCode.trim());
+  const canRunEnrollment = canSaveProfile && !isEnrollmentRunning;
 
   const handleRunEnrollment = async () => {
     if (!canRunEnrollment) {
-      setEnrollmentError('Profilname, Licence Key, TechUser IDP Number, Password und Identification Code sind erforderlich.');
+      const message = 'Profilname ist erforderlich, bevor Tech User Enrollment ausgefuehrt werden kann.';
+      setEnrollmentError(message);
+      setEnrollmentConsole(createEnrollmentConsoleState('error', 'Enrollment nicht gestartet', { error: message }));
       return;
     }
 
     setEnrollmentError(undefined);
+    setIsEnrollmentRunning(true);
+    let resolvedEnrollmentUrl: string | undefined;
 
     try {
+      resolvedEnrollmentUrl = techUserEnrollmentService.resolveEnrollmentUrl({
+        environmentId: formState.environment,
+      });
+      setEnrollmentConsole(createEnrollmentConsoleState('running', 'Enrollment Call laeuft', {
+        profileId: formState.id,
+        environment: formState.environment,
+        resolvedUrl: resolvedEnrollmentUrl,
+        techUserIdpNumber: formState.techUserIdpNumber || '(leer)',
+        licenceKey: maskSecretValue(formState.licenceKey),
+        password: maskSecretValue(formState.enrollmentPassword),
+        identificationCode: maskSecretValue(formState.identificationCode),
+      }));
       const response = await techUserEnrollmentService.enrollTechUser({
         profileId: formState.id,
         environmentId: formState.environment,
@@ -184,10 +220,19 @@ export function ProfileEditor({
 
       setEnrollmentResponse(response);
       setFormState(enrolledFormState);
-      onSave(savePayload.profile, savePayload.kafkaConfig);
+      setEnrollmentConsole(createEnrollmentConsoleState('success', 'Enrollment Response', sanitizeEnrollmentResponse(response)));
+      onSave(savePayload.profile, savePayload.kafkaConfig, { keepEditorOpen: true });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Tech User Enrollment ist fehlgeschlagen.';
       setEnrollmentResponse(undefined);
-      setEnrollmentError(error instanceof Error ? error.message : 'Tech User Enrollment ist fehlgeschlagen.');
+      setEnrollmentError(message);
+      setEnrollmentConsole(createEnrollmentConsoleState('error', 'Enrollment fehlgeschlagen', createEnrollmentErrorConsoleContent(error, message, {
+        profileId: formState.id,
+        environment: formState.environment,
+        resolvedUrl: resolvedEnrollmentUrl,
+      })));
+    } finally {
+      setIsEnrollmentRunning(false);
     }
   };
 
@@ -264,9 +309,11 @@ export function ProfileEditor({
           <TextField label="Identification Code" type="password" value={formState.identificationCode} onChange={(value) => handleChange('identificationCode', value)} />
           <div className="field field--actions">
             <span>Enrollment</span>
-            <button className="button button--secondary" disabled={!canRunEnrollment} type="button" onClick={handleRunEnrollment}>
-              Run Enrollment
-            </button>
+            <div className="button-row">
+              <button className="button button--secondary" disabled={!canRunEnrollment} type="button" onClick={handleRunEnrollment}>
+                {isEnrollmentRunning ? 'Running...' : 'Run Enrollment'}
+              </button>
+            </div>
           </div>
           <StatusField label="mTLS certificate available" active={Boolean(enrollmentResponse?.mtlsCertificate || formState.mtlsCertificateRef)} />
           <StatusField label="OAuth2 credentials available" active={Boolean(enrollmentResponse?.oauth2Credentials || formState.oauthClientIdRef)} />
@@ -285,10 +332,103 @@ export function ProfileEditor({
           <TextField label="OAuth2 Token Endpoint" value={formState.tokenEndpoint} onChange={(value) => handleChange('tokenEndpoint', value)} />
         </div>
         {enrollmentError && <p className="form-message form-message--error">{enrollmentError}</p>}
+        <EnrollmentConsole state={enrollmentConsole} />
       </FormSection>
 
     </form>
   );
+}
+
+function createEnrollmentConsoleState(
+  status: EnrollmentConsoleState['status'],
+  title: string,
+  content: unknown,
+): EnrollmentConsoleState {
+  return {
+    status,
+    title,
+    timestamp: new Date().toISOString(),
+    content,
+  };
+}
+
+function sanitizeEnrollmentResponse(response: TechUserEnrollmentResponse) {
+  return {
+    techUserIdpNumber: response.techUserIdpNumber,
+    enrolledAt: response.enrolledAt,
+    mtlsCertificate: response.mtlsCertificate
+      ? {
+          certificateBase64: maskSecretValue(response.mtlsCertificate.certificateBase64),
+          expiresAt: response.mtlsCertificate.expiresAt,
+          fingerprint: response.mtlsCertificate.fingerprint,
+        }
+      : undefined,
+    oauth2Credentials: response.oauth2Credentials
+      ? {
+          clientId: maskSecretValue(response.oauth2Credentials.clientId),
+          clientSecret: maskSecretValue(response.oauth2Credentials.clientSecret),
+          openIdConfigurationEndpoint: response.oauth2Credentials.openIdConfigurationEndpoint,
+          tokenEndpoint: response.oauth2Credentials.tokenEndpoint,
+          scope: response.oauth2Credentials.scope,
+        }
+      : undefined,
+  };
+}
+
+function createEnrollmentErrorConsoleContent(
+  error: unknown,
+  message: string,
+  context: { profileId: string; environment: ProfileEnvironment; resolvedUrl?: string },
+) {
+  if (error instanceof GeneralApiError) {
+    return {
+      error: message,
+      apiStatus: error.status,
+      apiErrorCode: error.errorCode,
+      apiErrorMessage: error.apiErrorMessage,
+      apiResponse: error.responseBody,
+      ...context,
+    };
+  }
+
+  return {
+    error: message,
+    ...context,
+  };
+}
+
+function maskSecretValue(value?: string): string {
+  if (!value?.trim()) {
+    return '(leer)';
+  }
+
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length <= 8) {
+    return '***';
+  }
+
+  return `${trimmedValue.slice(0, 4)}...${trimmedValue.slice(-4)}`;
+}
+
+function EnrollmentConsole({ state }: { state: EnrollmentConsoleState }) {
+  return (
+    <div className={`enrollment-console enrollment-console--${state.status}`}>
+      <div className="enrollment-console__header">
+        <span>{state.title}</span>
+        {state.timestamp && <time dateTime={state.timestamp}>{formatConsoleTimestamp(state.timestamp)}</time>}
+      </div>
+      <pre>{JSON.stringify(state.content, null, 2)}</pre>
+    </div>
+  );
+}
+
+function formatConsoleTimestamp(timestamp: string): string {
+  return new Intl.DateTimeFormat('de-CH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(timestamp));
 }
 
 function createProfileSavePayload({

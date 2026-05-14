@@ -4,6 +4,10 @@ import { ProfileEditor, ProfileSummary, ProfileSwitcher } from '../components/em
 import type { KafkaConfig, SafProfile } from '../models';
 import { profileStorageService } from '../services';
 
+type SaveProfileOptions = {
+  keepEditorOpen?: boolean;
+};
+
 export function ProfilesPage() {
   const [profileState, setProfileState] = useState(() => profileStorageService.getSnapshot());
   const [editedProfileId, setEditedProfileId] = useState<string | undefined>();
@@ -28,8 +32,16 @@ export function ProfilesPage() {
     setIsCreatingProfile(false);
   };
 
-  const handleSaveProfile = (profile: SafProfile, kafkaConfig: KafkaConfig) => {
+  const handleSaveProfile = (profile: SafProfile, kafkaConfig: KafkaConfig, options?: SaveProfileOptions) => {
     setProfileState(profileStorageService.saveProfile(profile, kafkaConfig));
+    if (options?.keepEditorOpen) {
+      if (!isCreatingProfile) {
+        setEditedProfileId(profile.id);
+        setIsCreatingProfile(false);
+      }
+      return;
+    }
+
     setEditedProfileId(undefined);
     setIsCreatingProfile(false);
   };

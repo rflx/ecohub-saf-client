@@ -1,4 +1,5 @@
 export {
+  createEnrollmentUserAgent,
   GeneralApiTechUserEnrollmentService,
   techUserEnrollmentService,
 } from './TechUserEnrollmentService';

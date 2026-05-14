@@ -113,10 +113,16 @@ export class ApiRuntimeResolver {
 }
 
 function joinUrl(...parts: string[]): string {
-  return parts
+  const normalizedParts = parts
     .map((part, index) => (index === 0 ? part.replace(/\/+$/, '') : part.replace(/^\/+|\/+$/g, '')))
-    .filter(Boolean)
-    .join('/');
+    .filter(Boolean);
+  const [baseUrl, apiBasePath, ...remainingParts] = normalizedParts;
+
+  if (baseUrl && apiBasePath && baseUrl.endsWith(`/${apiBasePath}`)) {
+    return [baseUrl, ...remainingParts].join('/');
+  }
+
+  return normalizedParts.join('/');
 }
 
 function getPathOperationId(path: string): string {

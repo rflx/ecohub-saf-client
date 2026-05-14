@@ -262,6 +262,12 @@ h2 {
   background: #fff6f4;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .profile-switcher {
   display: grid;
   gap: 8px;
@@ -573,6 +579,72 @@ h2 {
 
 .form-message--error {
   color: #8d2d24;
+}
+
+.enrollment-console {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce5df;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.enrollment-console--idle {
+  border-left-color: #8b9a90;
+}
+
+.enrollment-console--running {
+  border-left-color: #2f7d50;
+}
+
+.enrollment-console--success {
+  border-left-color: #2f7d50;
+  background: #f7fcf9;
+}
+
+.enrollment-console--warning {
+  border-left-color: #b78300;
+  background: #fffaf0;
+}
+
+.enrollment-console--error {
+  border-left-color: #c46c61;
+  background: #fffafa;
+}
+
+.enrollment-console__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #315243;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.enrollment-console__header time {
+  flex: 0 0 auto;
+  color: #607368;
+  font-size: 12px;
+}
+
+.enrollment-console pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #e4ece7;
+  border-radius: 8px;
+  color: #172026;
+  background: #f7faf8;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .profile-details {

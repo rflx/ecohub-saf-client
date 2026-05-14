@@ -6,10 +6,29 @@ import { profileStorageService } from '../profileStorage';
 
 export interface TechUserEnrollmentService {
   enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse>;
+  resolveEnrollmentUrl(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): string;
+}
+
+export function createEnrollmentUserAgent(): EnrolTechUserRequest['userAgent'] {
+  return {
+    name: packageJson.productName ?? 'EcoHub SAF Client',
+    version: packageJson.version ?? '1.0.0',
+  };
 }
 
 export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentService {
   constructor(private readonly generalApiService = new GeneralApiService()) {}
+
+  resolveEnrollmentUrl(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): string {
+    const snapshot = profileStorageService.getSnapshot();
+    const resolver = new ApiRuntimeResolver(snapshot.safEnvironments, snapshot.profiles);
+
+    return resolver.resolve({
+      environmentId: request.environmentId,
+      apiId: 'general-api',
+      operationId: 'techUserEnrolment',
+    }).resolvedUrl;
+  }
 
   async enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse> {
     validateEnrollmentRequest(request);
@@ -25,12 +44,7 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
       throw new Error(`General API Base URL fuer ${environment.name} ist nicht konfiguriert.`);
     }
 
-    const resolver = new ApiRuntimeResolver(snapshot.safEnvironments, snapshot.profiles);
-    const resolution = resolver.resolve({
-      environmentId: request.environmentId,
-      apiId: 'general-api',
-      operationId: 'techUserEnrolment',
-    });
+    const resolvedUrl = this.resolveEnrollmentUrl(request);
     const enrolmentRequest: EnrolTechUserRequest = {
       idpUserId: request.techUserIdpNumber.trim(),
       password: request.password,
@@ -38,13 +52,10 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
       licenceKey: request.licenceKey.trim(),
       requestId: createRequestId(),
       requestTime: new Date().toISOString(),
-      userAgent: {
-        name: packageJson.productName ?? 'EcoHub SAF Client',
-        version: packageJson.version ?? '1.0.0',
-      },
+      userAgent: createEnrollmentUserAgent(),
     };
     const response = await this.generalApiService.enrolTechUser(enrolmentRequest, {
-      url: resolution.resolvedUrl,
+      url: resolvedUrl,
       timeoutMs: environment.timeoutMs,
     });
 

@@ -1,2 +1,13 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+import { contextBridge, ipcRenderer } from 'electron';
+
+const SAF_API_POST_JSON_CHANNEL = 'saf-api:post-json';
+
+type SafApiPostJsonRequest = {
+  url: string;
+  timeoutMs: number;
+  body: unknown;
+};
+
+contextBridge.exposeInMainWorld('safApi', {
+  postJson: (request: SafApiPostJsonRequest) => ipcRenderer.invoke(SAF_API_POST_JSON_CHANNEL, request),
+});
