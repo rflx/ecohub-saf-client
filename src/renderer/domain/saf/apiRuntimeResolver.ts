@@ -18,9 +18,13 @@ export type ApiRuntimeResolverInput = {
 };
 
 export type ApiRuntimeResolution = {
+  apiId: ApiId;
+  apiName: string;
   baseUrl: string;
   apiVersion: ApiVersion;
   apiBasePath: string;
+  operationId: string;
+  operationName: string;
   operationPath: string;
   resolvedUrl: string;
 };
@@ -35,14 +39,19 @@ export class ApiRuntimeResolver {
   resolve(input: ApiRuntimeResolverInput): ApiRuntimeResolution {
     const environment = this.resolveEnvironment(input);
     const activeVersion = this.resolveActiveVersion(environment, input.apiId);
+    const apiName = this.resolveApiName(input.apiId);
     const apiVersion = this.resolveApiVersion(input.apiId, activeVersion);
     const operation = this.resolveOperation(apiVersion, input.operationId);
     const baseUrl = environment.baseUrl;
 
     return {
+      apiId: apiVersion.apiId,
+      apiName,
       baseUrl,
       apiVersion: apiVersion.version,
       apiBasePath: apiVersion.basePath,
+      operationId: operation.operationId,
+      operationName: operation.name,
       operationPath: operation.path,
       resolvedUrl: joinUrl(baseUrl, apiVersion.basePath, operation.path),
     };
@@ -97,6 +106,10 @@ export class ApiRuntimeResolver {
     }
 
     return apiVersion;
+  }
+
+  private resolveApiName(apiId: ApiId): string {
+    return this.config.apis.find((item) => item.id === apiId)?.name ?? apiId;
   }
 
   private resolveOperation(apiVersion: ApiSpecDefinition, operationId: string): ApiOperationDefinition {

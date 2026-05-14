@@ -6,6 +6,7 @@ import { profileStorageService } from '../profileStorage';
 
 export interface TechUserEnrollmentService {
   enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse>;
+  resolveEnrollmentEndpointInfo(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): ApiRuntimeResolution;
   resolveEnrollmentUrl(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): string;
 }
 
@@ -21,6 +22,10 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
 
   resolveEnrollmentUrl(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): string {
     return this.resolveEnrollmentEndpoint(request).resolvedUrl;
+  }
+
+  resolveEnrollmentEndpointInfo(request: Pick<TechUserEnrollmentRequest, 'environmentId'>): ApiRuntimeResolution {
+    return this.resolveEnrollmentEndpoint(request);
   }
 
   async enrollTechUser(request: TechUserEnrollmentRequest): Promise<TechUserEnrollmentResponse> {

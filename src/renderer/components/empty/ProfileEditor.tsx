@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { DEFAULT_INPUT_TOPIC, DEFAULT_OUTPUT_TOPIC_PATTERN } from '../../domain/saf';
+import type { ApiRuntimeResolution } from '../../domain/saf';
 import type {
   KafkaConfig,
   ProfileEnvironment,
@@ -55,6 +56,17 @@ type EnrollmentConsoleState = {
   title: string;
   timestamp?: string;
   content: unknown;
+};
+
+type EnrollmentConsoleContext = {
+  profileId: string;
+  environment: ProfileEnvironment;
+  apiId?: string;
+  apiName?: string;
+  apiVersion?: string;
+  apiBasePath?: string;
+  apiOperationId?: string;
+  resolvedUrl?: string;
 };
 
 const profileEnvironments: ProfileEnvironment[] = ['prod', 'iat', 'test', 'dev'];
@@ -134,16 +146,15 @@ export function ProfileEditor({
 
     setEnrollmentError(undefined);
     setIsEnrollmentRunning(true);
-    let resolvedEnrollmentUrl: string | undefined;
+    let resolvedEndpointInfo: ApiRuntimeResolution | undefined;
 
     try {
-      resolvedEnrollmentUrl = techUserEnrollmentService.resolveEnrollmentUrl({
+      resolvedEndpointInfo = techUserEnrollmentService.resolveEnrollmentEndpointInfo({
         environmentId: formState.environment,
       });
+      const consoleContext = createEnrollmentConsoleContext(formState.id, formState.environment, resolvedEndpointInfo);
       setEnrollmentConsole(createEnrollmentConsoleState('running', 'Enrollment Call laeuft', {
-        profileId: formState.id,
-        environment: formState.environment,
-        resolvedUrl: resolvedEnrollmentUrl,
+        ...consoleContext,
         techUserIdpNumber: formState.techUserIdpNumber || '(leer)',
         licenceKey: maskSecretValue(formState.licenceKey),
         password: maskSecretValue(formState.enrollmentPassword),
@@ -192,17 +203,20 @@ export function ProfileEditor({
 
       setEnrollmentResponse(response);
       setFormState(enrolledFormState);
-      setEnrollmentConsole(createEnrollmentConsoleState('success', 'Enrollment Response', sanitizeEnrollmentResponse(response)));
+      setEnrollmentConsole(createEnrollmentConsoleState('success', 'Enrollment Response', {
+        ...consoleContext,
+        ...sanitizeEnrollmentResponse(response),
+      }));
       onSave(savePayload.profile, savePayload.kafkaConfig, { keepEditorOpen: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Tech User Enrollment ist fehlgeschlagen.';
       setEnrollmentResponse(undefined);
       setEnrollmentError(message);
-      setEnrollmentConsole(createEnrollmentConsoleState('error', 'Enrollment fehlgeschlagen', createEnrollmentErrorConsoleContent(error, message, {
-        profileId: formState.id,
-        environment: formState.environment,
-        resolvedUrl: resolvedEnrollmentUrl,
-      })));
+      setEnrollmentConsole(createEnrollmentConsoleState('error', 'Enrollment fehlgeschlagen', createEnrollmentErrorConsoleContent(
+        error,
+        message,
+        createEnrollmentConsoleContext(formState.id, formState.environment, resolvedEndpointInfo),
+      )));
     } finally {
       setIsEnrollmentRunning(false);
     }
@@ -348,14 +362,12 @@ function sanitizeEnrollmentResponse(response: TechUserEnrollmentResponse) {
 function createEnrollmentErrorConsoleContent(
   error: unknown,
   message: string,
-  context: { profileId: string; environment: ProfileEnvironment; resolvedUrl?: string },
+  context: EnrollmentConsoleContext,
 ) {
   if (error instanceof GeneralApiError) {
     return {
       error: message,
       apiStatus: error.status,
-      apiErrorCode: error.errorCode,
-      apiErrorMessage: error.apiErrorMessage,
       apiResponse: error.responseBody,
       ...context,
     };
@@ -364,6 +376,23 @@ function createEnrollmentErrorConsoleContent(
   return {
     error: message,
     ...context,
+  };
+}
+
+function createEnrollmentConsoleContext(
+  profileId: string,
+  environment: ProfileEnvironment,
+  resolution?: ApiRuntimeResolution,
+): EnrollmentConsoleContext {
+  return {
+    profileId,
+    environment,
+    apiId: resolution?.apiId,
+    apiName: resolution?.apiName,
+    apiVersion: resolution?.apiVersion,
+    apiBasePath: resolution?.apiBasePath,
+    apiOperationId: resolution?.operationId,
+    resolvedUrl: resolution?.resolvedUrl,
   };
 }
 
