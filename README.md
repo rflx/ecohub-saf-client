@@ -48,13 +48,13 @@ npm run generate:api
 ## Projektstruktur
 
 - `src/main.ts`: Electron Main Process
-- `src/preload.ts`: Preload Entry Point
+- `src/preload.ts`: Preload Entry Point mit SAF-API-Bridge fuer JSON-Requests
 - `src/renderer`: React Renderer App
 - `src/renderer/domain/saf`: SAF-Domainlogik, aktuell Topic Resolver
 - `src/renderer/domain/saf/apiRuntimeResolver.ts`: loest Profile oder Environments auf Service Host, aktiven API-Prefix und Operation-Pfad auf
 - `src/renderer/models`: TypeScript Models
 - `src/renderer/data`: Lokales API-Management und Environment-Defaults ohne Beispielprofile
-- `src/renderer/services`: Lokaler ProfileStorage, Tech User Enrollment, SecretStore und vorbereitete Clients
+- `src/renderer/services`: Lokaler ProfileStorage, Tech User Enrollment und SecretStore
 - `src/renderer/transport/kafka`: Kafka-Transportgrenze fuer spaetere Implementierungen
 - `src/saf`: Zentrale SAF API Registry, OpenAPI-basierte SAF-Spec-, Codegen- und General-API-Service-Struktur
 - `specs`: Lokal versionierte SAF OpenAPI Specs
@@ -77,13 +77,12 @@ npm run generate:api
 - Profile referenzieren weiterhin nur ein Environment. Spaetere API Calls sollen ueber `Profile -> Environment -> Active API Version -> ApiRuntimeResolver -> Operation` aufgeloest werden.
 - Alle SAF API Calls sind fachlich einem SAF TechUser zugeordnet.
 - TechUser Auth wird pro Profil mit `availableMethods`, `preferredMethod`, TechUser IDP Number und Enrollment-Status modelliert.
-- Das Tech User Enrollment Formular fuehrt den echten General-API-Call `techUserEnrolment` / `EnrolTechUser` aus. Die aktive General-API-Version wird ueber das Profil-Environment und dessen Active-Version-Mapping aufgeloest; der Endpoint wird nicht im Formular hartcodiert. Der HTTP-POST laeuft zwingend in Electron ueber eine schmale Preload/Main-Bridge, damit der Renderer nicht direkt aus dem Browser-Kontext gegen den Service Host fetches ausfuehren muss und kein CORS-Preflight den Call blockiert. Im Main Process wird der POST mit Node `https.request` bzw. `http.request` ausgefuehrt. Ist diese Bridge nicht verfuegbar, bricht die App mit einer klaren Diagnose ab, statt auf Renderer-`fetch` zurueckzufallen. Der Enrollment-Bereich zeigt eine kleine Output-Konsole fuer Start-, Fehler- und Response-Daten inklusive aufgeloester Request-URL; API-Fehler enthalten dort HTTP-Status, `errorCode`, `errorMessage` und den rohen API-Body. TLS-Fehler mit `ERR_SSL_CLIENT_AUTH_CERT_NEEDED` erhalten einen gesonderten Hinweis, dass der Node-HTTPS-Request fuer diesen Verbindungsversuch Client-Auth meldet; falls der Endpoint in anderen Clients ohne Zertifikat erreichbar ist, sollen Host, Pfad, Proxy, DNS/SNI, VPN und Trust-/Zertifikatseinstellungen verglichen werden. Sensible Werte wie Passwort, Identification Code, Zertifikat und Client Secret werden maskiert.
-- OAuth2 ist fuer spaetere Client-Credentials-Flows vorbereitet: `openIdConfigurationEndpoint`, optionaler `tokenEndpoint` und Scope `https://graph.microsoft.com/.default` sind modelliert.
+- Das Tech User Enrollment Formular fuehrt den echten General-API-Call `techUserEnrolment` / `EnrolTechUser` aus. Die aktive General-API-Version wird ueber das Profil-Environment und dessen Active-Version-Mapping aufgeloest; der Endpoint wird nicht im Formular hartcodiert. API-Requests laufen zwingend in Electron ueber eine schmale Preload/Main-Bridge, damit der Renderer nicht direkt aus dem Browser-Kontext gegen den Service Host fetches ausfuehren muss und kein CORS-Preflight den Call blockiert. Im Main Process werden JSON-Requests mit Node `https.request` bzw. `http.request` ausgefuehrt und unterstuetzen `GET`, `POST`, `PUT`, `PATCH` und `DELETE`. Ist diese Bridge nicht verfuegbar, bricht die App mit einer klaren Diagnose ab, statt auf Renderer-`fetch` zurueckzufallen. Der Enrollment-Bereich zeigt eine kleine Output-Konsole fuer Start-, Fehler- und Response-Daten inklusive aufgeloester Request-URL; API-Fehler enthalten dort HTTP-Status, `errorCode`, `errorMessage` und den rohen API-Body. TLS-Fehler mit `ERR_SSL_CLIENT_AUTH_CERT_NEEDED` erhalten einen gesonderten Hinweis, dass der Node-HTTPS-Request fuer diesen Verbindungsversuch Client-Auth meldet; falls der Endpoint in anderen Clients ohne Zertifikat erreichbar ist, sollen Host, Pfad, Proxy, DNS/SNI, VPN und Trust-/Zertifikatseinstellungen verglichen werden. Sensible Werte wie Passwort, Identification Code, Zertifikat und Client Secret werden maskiert.
+- OAuth2 Enrollment-Daten werden lokal modelliert: `openIdConfigurationEndpoint`, optionaler `tokenEndpoint` und Scope `https://graph.microsoft.com/.default`.
 - Bei erfolgreichem Enrollment werden TechUser-Zertifikat, OAuth2 Client-ID und OAuth2 Client-Secret im lokalen SecretStore gespeichert. Das Profil speichert nur Secret-Referenzen, `openIdConfigurationEndpoint`, Enrollment-Status und Enrollment-Zeitpunkt. Passwoerter und Identification Codes werden nicht gespeichert.
 - `LocalSecretStore` kapselt lokale Secret-Zugriffe getrennt vom Profilmodell und kann spaeter durch eine macOS-Keychain-Implementierung ersetzt werden.
-- General API Endpoints dienen der Abfrage von Receiver / Service Agreements und werden ueber den Environment Host plus API-Management Base Path aufgeloest.
-- Public Key Store / PKI API Endpoints dienen dem Abruf fremder Public Keys und der Verwaltung eigener Public Keys und werden ueber den Environment Host plus API-Management Base Path aufgeloest.
-- SAF API Types werden aus lokalen OpenAPI Specs generiert. Der `GeneralApiService` unter `src/saf/services` fuehrt den Enrollment-POST fuer `EnrolTechUser` aus und nutzt dafuer ausschliesslich die `window.safApi`-Bridge zum Electron Main Process; `SafReceivers` und `SafInsurers` sind weiterhin vorbereitet, aber ohne echten Runtime-Request.
+- General API und Public Key Store API bleiben im API Management und in den generierten OpenAPI-Typen sichtbar; echte Runtime-Aufrufe sind aktuell auf Tech User Enrollment begrenzt.
+- SAF API Types werden aus lokalen OpenAPI Specs generiert. `SafApiHttpService` unter `src/saf/services` bildet die gemeinsame JSON-Request-Basis fuer Runtime-Services ueber die `window.safApi`-Bridge zum Electron Main Process. Der `GeneralApiService` nutzt diese Basis aktuell fuer den Enrollment-POST `EnrolTechUser`; weitere Calls koennen spaeter pro API-Familie darauf aufbauen.
 - Der `ApiRuntimeResolver` unter `src/renderer/domain/saf` bindet die General-API-Operationen `saf-receivers`, `saf-insurers` und `techUserEnrolment` an die aktive Version eines Environments und erzeugt aus Environment-`baseUrl`, API-`basePath` und Operation-Pfad eine `resolvedUrl` ohne Netzwerkaufruf.
 - SAF Profile fuehren getrennte Referenzen fuer Encryption- und Signing-Keypairs.
 - Default Input Topic: `eh.saf.in.v1`

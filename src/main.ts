@@ -6,15 +6,19 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
 const APP_NAME = 'EcoHub SAF Client';
-const SAF_API_POST_JSON_CHANNEL = 'saf-api:post-json';
+const SAF_API_REQUEST_JSON_CHANNEL = 'saf-api:request-json';
 
-type SafApiPostJsonRequest = {
+type SafApiHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+type SafApiJsonRequest = {
+  method: SafApiHttpMethod;
   url: string;
   timeoutMs: number;
-  body: unknown;
+  body?: unknown;
+  headers?: Record<string, string>;
 };
 
-type SafApiPostJsonResponse = {
+type SafApiJsonResponse = {
   ok: boolean;
   status: number;
   responseBody: unknown;
@@ -46,12 +50,12 @@ const configureAppPaths = () => {
 configureAppPaths();
 
 ipcMain.handle(
-  SAF_API_POST_JSON_CHANNEL,
-  async (_event, request: SafApiPostJsonRequest): Promise<SafApiPostJsonResponse> => {
-    validateSafApiPostJsonRequest(request);
+  SAF_API_REQUEST_JSON_CHANNEL,
+  async (_event, request: SafApiJsonRequest): Promise<SafApiJsonResponse> => {
+    validateSafApiJsonRequest(request);
 
     try {
-      return await postJsonWithNodeRequest(request);
+      return await requestJsonWithNodeRequest(request);
     } catch (error) {
       return {
         ok: false,
@@ -116,21 +120,27 @@ app.on('activate', () => {
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
 
-function postJsonWithNodeRequest(request: SafApiPostJsonRequest): Promise<SafApiPostJsonResponse> {
+function requestJsonWithNodeRequest(request: SafApiJsonRequest): Promise<SafApiJsonResponse> {
   const url = new URL(request.url);
-  const requestBody = JSON.stringify(request.body);
+  const hasBody = request.body !== undefined;
+  const requestBody = hasBody ? JSON.stringify(request.body) : undefined;
   const transport = url.protocol === 'https:' ? https : http;
+  const headers: Record<string, string | number> = {
+    Accept: 'application/json',
+    ...request.headers,
+  };
+
+  if (requestBody !== undefined) {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(requestBody);
+  }
 
   return new Promise((resolve, reject) => {
     const nodeRequest = transport.request(
       url,
       {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(requestBody),
-        },
+        method: request.method,
+        headers,
         timeout: request.timeoutMs,
       },
       (response) => {
@@ -154,11 +164,15 @@ function postJsonWithNodeRequest(request: SafApiPostJsonRequest): Promise<SafApi
     );
 
     nodeRequest.on('timeout', () => {
-      nodeRequest.destroy(new Error(`General API request timed out after ${request.timeoutMs} ms.`));
+      nodeRequest.destroy(new Error(`SAF API request timed out after ${request.timeoutMs} ms.`));
     });
 
     nodeRequest.on('error', reject);
-    nodeRequest.write(requestBody);
+
+    if (requestBody !== undefined) {
+      nodeRequest.write(requestBody);
+    }
+
     nodeRequest.end();
   });
 }
@@ -175,7 +189,7 @@ function parseJsonResponse(responseText: string): unknown {
   }
 }
 
-function validateSafApiPostJsonRequest(request: SafApiPostJsonRequest): void {
+function validateSafApiJsonRequest(request: SafApiJsonRequest): void {
   if (typeof request?.url !== 'string' || !request.url.trim()) {
     throw new Error('SAF API URL ist erforderlich.');
   }
@@ -189,12 +203,16 @@ function validateSafApiPostJsonRequest(request: SafApiPostJsonRequest): void {
   if (!Number.isFinite(request.timeoutMs) || request.timeoutMs <= 0) {
     throw new Error('SAF API Timeout muss groesser als 0 sein.');
   }
+
+  if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    throw new Error(`SAF API HTTP-Methode wird nicht unterstuetzt: ${request.method}`);
+  }
 }
 
 function createNetworkErrorMessage(error: unknown, timeoutMs: number): string {
   if (error instanceof Error && error.message.includes(`timed out after ${timeoutMs} ms`)) {
-    return `General API request timed out after ${timeoutMs} ms.`;
+    return `SAF API request timed out after ${timeoutMs} ms.`;
   }
 
-  return error instanceof Error ? error.message : 'General API request failed.';
+  return error instanceof Error ? error.message : 'SAF API request failed.';
 }

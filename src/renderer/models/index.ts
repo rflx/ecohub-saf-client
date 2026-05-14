@@ -16,8 +16,6 @@ export type {
   ApiSpecDefinition,
   ApiSupportStatus,
   ApiVersion,
-  AuthMode,
-  BearerTokenInfo,
   ConnectionStatus,
   KeyUsage,
   MtlsCertificateInfo,

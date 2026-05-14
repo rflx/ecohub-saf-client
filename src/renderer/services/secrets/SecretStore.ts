@@ -3,14 +3,12 @@ import type { SecretRef } from '../../models';
 export type SecretType =
   | 'mtls-certificate'
   | 'oauth-client-id'
-  | 'oauth-client-secret'
-  | 'oauth-bearer-token';
+  | 'oauth-client-secret';
 
 export const LOCAL_SECRET_TYPES: SecretType[] = [
   'mtls-certificate',
   'oauth-client-id',
   'oauth-client-secret',
-  'oauth-bearer-token',
 ];
 
 export interface SecretStore {

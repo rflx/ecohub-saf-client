@@ -41,8 +41,6 @@ export type ApiManagementConfig = {
 
 export type TechUserAuthMethod = 'mtls' | 'oauth2';
 
-export type AuthMode = TechUserAuthMethod;
-
 export type TechUserEnrollmentStatus = 'not-enrolled' | 'enrolled' | 'failed';
 
 export type KeyUsage = 'encryption' | 'signing';
@@ -87,13 +85,6 @@ export type OAuth2ClientCredentials = {
   openIdConfigurationEndpoint: string;
   tokenEndpoint?: string;
   scope: 'https://graph.microsoft.com/.default';
-};
-
-export type BearerTokenInfo = {
-  accessToken: string;
-  tokenType: 'Bearer';
-  expiresAt: string;
-  scope: string;
 };
 
 export type TechUserEnrollmentResponse = {
