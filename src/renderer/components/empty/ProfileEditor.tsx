@@ -41,6 +41,7 @@ type ProfileFormState = {
 };
 
 type StoredEnrollmentRefs = {
+  techUserPasswordRef?: SecretRef;
   mtlsCertificateRef?: SecretRef;
   oauthClientIdRef?: SecretRef;
   oauthClientSecretRef?: SecretRef;
@@ -169,6 +170,9 @@ export function ProfileEditor({
         licenceKey: formState.licenceKey,
       });
       const profileId = formState.id.trim();
+      const techUserPasswordRef = formState.enrollmentPassword.trim()
+        ? localSecretStore.setSecret(profileId, 'tech-user-password', formState.enrollmentPassword)
+        : profile?.techUserAuth.techUserPasswordRef;
       const mtlsCertificateRef = response.mtlsCertificate
         ? localSecretStore.setSecret(profileId, 'mtls-certificate', response.mtlsCertificate.certificateBase64)
         : undefined;
@@ -180,7 +184,6 @@ export function ProfileEditor({
         : undefined;
       const enrolledFormState: ProfileFormState = {
         ...formState,
-        enrollmentPassword: '',
         identificationCode: '',
         preferredMethod: response.mtlsCertificate ? 'mtls' : 'oauth2',
         mtlsCertificateRef: mtlsCertificateRef?.id ?? '',
@@ -198,6 +201,7 @@ export function ProfileEditor({
           mtlsCertificateRef,
           oauthClientIdRef,
           oauthClientSecretRef,
+          techUserPasswordRef,
         },
       });
 
@@ -463,6 +467,11 @@ function createProfileSavePayload({
     (enrollmentResponse?.oauth2Credentials
       ? localSecretStore.setSecret(profileId, 'oauth-client-secret', enrollmentResponse.oauth2Credentials.clientSecret)
       : profile?.techUserAuth.oauthClientSecretRef);
+  const storedTechUserPasswordRef =
+    storedEnrollmentRefs?.techUserPasswordRef ??
+    (formState.enrollmentPassword.trim()
+      ? localSecretStore.setSecret(profileId, 'tech-user-password', formState.enrollmentPassword)
+      : profile?.techUserAuth.techUserPasswordRef);
   const hasMtlsCertificate = Boolean(storedMtlsCertificateRef);
   const hasOAuth2Credentials = Boolean(storedOAuthClientIdRef && storedOAuthClientSecretRef);
   const availableMethods = authMethods.filter((method) =>
@@ -513,6 +522,7 @@ function createProfileSavePayload({
         availableMethods,
         preferredMethod,
         techUserIdpNumber: formState.techUserIdpNumber.trim(),
+        techUserPasswordRef: storedTechUserPasswordRef,
         mtlsCertificateRef: storedMtlsCertificateRef,
         oauthClientIdRef: storedOAuthClientIdRef,
         oauthClientSecretRef: storedOAuthClientSecretRef,
@@ -648,6 +658,9 @@ function createFormState(profile?: SafProfile): ProfileFormState {
   const oauthClientIdRef = profile?.techUserAuth?.oauthClientIdRef?.id ?? '';
   const oauthClientSecretRef = profile?.techUserAuth?.oauthClientSecretRef?.id ?? '';
   const techUserIdpNumber = profile?.techUserAuth?.techUserIdpNumber ?? '';
+  const enrollmentPassword = profile?.techUserAuth?.techUserPasswordRef
+    ? localSecretStore.getSecret(profile.id, 'tech-user-password') ?? ''
+    : '';
 
   return {
     id,
@@ -657,7 +670,7 @@ function createFormState(profile?: SafProfile): ProfileFormState {
     description: profile?.description ?? '',
     licenceKey: profile?.licenceKey ?? '',
     techUserIdpNumber,
-    enrollmentPassword: '',
+    enrollmentPassword,
     identificationCode: '',
     preferredMethod,
     mtlsCertificateRef,

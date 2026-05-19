@@ -55,6 +55,7 @@ export type TechUserAuthConfig = {
   availableMethods: TechUserAuthMethod[];
   preferredMethod: TechUserAuthMethod;
   techUserIdpNumber: string;
+  techUserPasswordRef?: SecretRef;
   mtlsCertificateRef?: SecretRef;
   oauthClientIdRef?: SecretRef;
   oauthClientSecretRef?: SecretRef;

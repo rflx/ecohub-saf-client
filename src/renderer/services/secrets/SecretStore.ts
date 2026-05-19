@@ -1,11 +1,13 @@
 import type { SecretRef } from '../../models';
 
 export type SecretType =
+  | 'tech-user-password'
   | 'mtls-certificate'
   | 'oauth-client-id'
   | 'oauth-client-secret';
 
 export const LOCAL_SECRET_TYPES: SecretType[] = [
+  'tech-user-password',
   'mtls-certificate',
   'oauth-client-id',
   'oauth-client-secret',
