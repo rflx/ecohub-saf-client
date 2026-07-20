@@ -22,6 +22,7 @@ type SafApiJsonResponse = {
   ok: boolean;
   status: number;
   responseBody: unknown;
+  responseHeaders?: Record<string, string>;
   networkError?: string;
 };
 
@@ -158,6 +159,7 @@ function requestJsonWithNodeRequest(request: SafApiJsonRequest): Promise<SafApiJ
             ok: status >= 200 && status < 300,
             status,
             responseBody: parseJsonResponse(responseText),
+            responseHeaders: normalizeResponseHeaders(response.headers),
           });
         });
       },
@@ -175,6 +177,13 @@ function requestJsonWithNodeRequest(request: SafApiJsonRequest): Promise<SafApiJ
 
     nodeRequest.end();
   });
+}
+
+function normalizeResponseHeaders(headers: http.IncomingHttpHeaders): Record<string, string> {
+  return Object.fromEntries(Object.entries(headers).flatMap(([key, value]) => {
+    if (value === undefined) return [];
+    return [[key, Array.isArray(value) ? value.join(', ') : String(value)]];
+  }));
 }
 
 function parseJsonResponse(responseText: string): unknown {

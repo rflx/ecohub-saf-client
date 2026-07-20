@@ -6,7 +6,13 @@ export type {
   TopicConfig,
   TopicSubscriptionStatus,
 } from './kafka';
-export type { LogEntry, LogLevel } from './log';
+export type {
+  ApplicationLogDirection,
+  ApplicationLogEntry,
+  ApplicationLogOperation,
+  ApplicationLogStatus,
+  ApplicationLogTransport,
+} from './log';
 export type { AppPage, NavigationItem } from './navigation';
 export type {
   ActiveApiVersionMapping,

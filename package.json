@@ -11,6 +11,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
+    "test": "node --import tsx --test tests/*.test.ts",
     "sync:specs": "tsx scripts/sync-specs.ts",
     "generate:api": "tsx scripts/generate-api.ts"
   },

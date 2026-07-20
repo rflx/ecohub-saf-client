@@ -9,7 +9,7 @@ EcoHub SAF Client ist als lokale Desktop-App auf Basis von Electron, React und T
 - React Renderer: stellt Seiten, Navigation und spaetere Support-Workflows dar.
 - SAF Domain: enthaelt fachliche SAF-Regeln wie die Aufloesung von Input- und Output-Topics sowie Runtime-Aufloesung von API-Operationen.
 - Models: beschreiben SAF Profile, TechUser Auth und Enrollment, SAF Environments, API Management, Kafka-Konfigurationen, Topics, SAF Events und Logs.
-- Services: kapseln lokalen ProfileStorage, TechUser Enrollment, SecretStore und die vorbereitete Kafka-Grenze.
+- Services: kapseln lokalen ProfileStorage, TechUser Enrollment, SecretStore, zentrales Application Logging und die vorbereitete Kafka-Grenze.
 - SAF OpenAPI Layer: verwaltet die zentrale SAF API Registry, lokal versionierte OpenAPI Specs, Synchronisation aus externen GitHub Raw URLs und generierte TypeScript-Typen fuer SAF APIs.
 - Kafka Transport: markiert die technische Grenze fuer eine spaetere echte Kafka-Implementierung.
 
@@ -32,6 +32,16 @@ Der `LocalSecretStore` kapselt Secret-Zugriffe ueber `setSecret(profileId, secre
 Der SAF Topic Resolver verwendet standardmaessig `eh.saf.in.v1` als Input Topic und `eh.saf.{ecoHubId}.{standard}.out.v1` als Output Topic Pattern. Output Topics koennen ueber `outputTopicOverride` in der Kafka-Topic-Konfiguration ueberschrieben werden.
 
 Weitere Kafka- oder API-Anbindungen sollten hinter den vorhandenen Service- und Client-Grenzen liegen und nicht direkt in UI-Komponenten implementiert werden.
+
+## Application Logging
+
+Der transportneutrale `ApplicationLogService` ist die zentrale technische Log-Grenze. Fuer REST lautet der Datenfluss `fachlicher API Service -> SafApiHttpService -> ApplicationLogService -> window.safApi -> Electron Main HTTP Transport`. Der kleinste gemeinsame REST-Hook liegt in `SafApiHttpService`: Er kennt den effektiven Request, die vom Runtime-Resolver durchgereichten API-/Operationsmetadaten, Response oder Netzwerkfehler sowie die Laufzeit. Die Main-/Preload-Bridge bleibt der einzige HTTP-Transport und gibt zusaetzlich normalisierte Response Headers zurueck. React-Seiten und fachliche API-Services implementieren kein eigenes Transport-Logging.
+
+Eine Operation erzeugt genau einen Eintrag mit Correlation-ID. Der Service legt ihn vor dem Transport als `pending` an und aktualisiert ihn nach Empfang als `success`/`response` oder `error`. Das erweiterbare Modell unter `src/renderer/models/log.ts` kennt `rest` und `kafka`; generische Start-/Complete-/Fail-Methoden und `metadata` koennen spaeter Kafka-Aktionen wie Connect, Produce, Consume oder Commit aufnehmen. Es existiert weiterhin weder eine echte Kafka-Verbindung noch eine OAuth2-Token- oder mTLS-Runtime.
+
+Vor jeder Speicherung verarbeitet eine zentrale Sanitization Objekte und Arrays rekursiv und schluesselunabhaengig von Gross-/Kleinschreibung. Password, Identification-/Activation-Code, IAK, Licence Key, Client Secrets, Access-/Refresh-Token, Authorization, Cookies, Zertifikate, `.p12`, Private Keys und Kafka-/SASL-Credentials werden als `[REDACTED]` gespeichert; sensitive URL-Queryparameter werden ebenfalls maskiert. Grosse String-/Base64-Werte und Bodies werden kenntlich gekuerzt. Der Logger liest niemals Werte aus dem SecretStore.
+
+`ApplicationLogStorage` trennt Service und Persistenz. Die erste Implementierung `LocalStorageApplicationLogStorage` verwendet den eigenen Key `ecohub-saf-client.application-logs`, behandelt ungueltige Snapshots und Quota-Fehler ohne Abbruch, behaelt maximal 500 Eintraege und begrenzt Bodies auf 16.000 Zeichen. Die Logs-Seite subscribed ohne neue State-Library auf Service-Aenderungen, sortiert neueste Eintraege zuerst, formatiert UTC-Zeitpunkte dynamisch fuer `Europe/Zurich` und bietet Details, Filter, Suche und bestaetigtes Loeschen.
 
 ## SAF OpenAPI Layer
 

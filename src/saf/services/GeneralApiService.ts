@@ -26,6 +26,15 @@ export type GeneralApiRequestOptions = {
   url: string;
   apiVersion: string;
   timeoutMs: number;
+  logContext: {
+    profileId?: string;
+    profileName?: string;
+    environmentId: string;
+    apiId: string;
+    apiName: string;
+    operationId: string;
+    operationName: string;
+  };
 };
 
 export class GeneralApiError extends Error {
@@ -48,9 +57,13 @@ export class GeneralApiService extends SafApiHttpService {
   ): Promise<EnrolTechUserResponse> {
     switch (options.apiVersion) {
       case '1.2.0':
-        return this.postJson<EnrolTechUserResponseV120>(options.url, request, options.timeoutMs);
+        return this.postJson<EnrolTechUserResponseV120>(options.url, request, options.timeoutMs, undefined, {
+          ...options.logContext, apiVersion: options.apiVersion,
+        });
       case '2.0.0':
-        return this.postJson<EnrolTechUserResponseV200>(options.url, request, options.timeoutMs);
+        return this.postJson<EnrolTechUserResponseV200>(options.url, request, options.timeoutMs, undefined, {
+          ...options.logContext, apiVersion: options.apiVersion,
+        });
       default:
         throw new Error(`General API Version ${options.apiVersion} wird fuer Tech User Enrollment nicht unterstuetzt.`);
     }

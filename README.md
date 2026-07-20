@@ -14,6 +14,7 @@ Die aktuelle Projektbasis stellt UI-Struktur, TypeScript-Models, SAF-Konfigurati
 - SAF Input- und Output-Topics aus Profil- und Kafka-Konfigurationen aufloesen
 - SAF Events und technische Logs als spaetere lokale Ansichten vorbereiten
 - Support- und Entwicklungsablaeufe ohne Secrets und ohne externe Systeme vorbereiten
+- Ausgehende REST-Operationen zentral und sicher maskiert unter `Logs` nachvollziehen
 
 ## Tech Stack
 
@@ -55,6 +56,7 @@ npm run generate:api
 - `src/renderer/models`: TypeScript Models
 - `src/renderer/data`: Lokales API-Management und Environment-Defaults ohne Beispielprofile
 - `src/renderer/services`: Lokaler ProfileStorage, Tech User Enrollment und SecretStore
+- `src/renderer/services/applicationLog`: Transportneutrales Application Logging mit gekapseltem LocalStorage
 - `src/renderer/transport/kafka`: Kafka-Transportgrenze fuer spaetere Implementierungen
 - `src/saf`: Zentrale SAF API Registry, OpenAPI-basierte SAF-Spec-, Codegen- und General-API-Service-Struktur
 - `specs`: Lokal versionierte SAF OpenAPI Specs
@@ -83,6 +85,10 @@ npm run generate:api
 - `LocalSecretStore` kapselt lokale Secret-Zugriffe getrennt vom Profilmodell und kann spaeter durch eine macOS-Keychain-Implementierung ersetzt werden.
 - General API und Public Key Store API bleiben im API Management und in den generierten OpenAPI-Typen sichtbar; echte Runtime-Aufrufe sind aktuell auf Tech User Enrollment begrenzt.
 - SAF API Types werden aus lokalen OpenAPI Specs generiert. `SafApiHttpService` unter `src/saf/services` bildet die gemeinsame JSON-Request-Basis fuer Runtime-Services ueber die `window.safApi`-Bridge zum Electron Main Process. Der `GeneralApiService` nutzt diese Basis aktuell fuer den Enrollment-POST `EnrolTechUser` und waehlt dabei anhand der vom Runtime-Resolver gelieferten General-API-Version zwischen den generierten Typen; weitere Calls koennen spaeter pro API-Familie darauf aufbauen.
+- Der Hauptmenuepunkt `Logs` zeigt die neuesten technischen Operationen inklusive Zuerich-Zeit mit saisonalem UTC-Offset, Status, Transport, API/Operation, Profil, Environment, URL, HTTP-Status und Dauer. Aufklappbare Details enthalten Request, Response, Fehler und Correlation-ID; Status-/Transportfilter, Freitextsuche und bestaetigtes Loeschen sind enthalten. Die Ansicht aktualisiert sich waehrend der App-Sitzung automatisch.
+- Alle REST-Aufrufe ueber `SafApiHttpService` werden als ein zusammenhaengender, zunaechst `pending` angelegter und danach als `success` oder `error` abgeschlossener Eintrag protokolliert. Dadurch erscheint auch Tech User Enrollment ohne Logging-Code in der Profilseite oder im `GeneralApiService` automatisch. Die Main-/Preload-Bridge liefert dafuer neben Status und Body auch Response Headers.
+- `ApplicationLogService` ist transportneutral und bietet `startOperation`, `completeOperation`, `failOperation` und `logOperation`; der Transporttyp `kafka` und freie Metadaten bereiten spaetere Kafka-Operationen vor, stellen aber noch keine Kafka-Verbindung her.
+- Logs liegen getrennt von Profilen und Secrets unter `ecohub-saf-client.application-logs` im Renderer-`localStorage`. Der Storage ist hinter `ApplicationLogStorage` gekapselt, toleriert defekte Snapshots, behaelt maximal 500 Eintraege und begrenzt Request-/Response-Bodies auf 16.000 Zeichen. Eine zentrale rekursive Sanitization maskiert unter anderem Passwoerter, IAK/Identification-/Activation-Codes, Licence Keys, OAuth-Secrets, Tokens, Authorization, Cookies, Zertifikate, Private Keys und SASL-Daten mit `[REDACTED]`; grosse Base64-/Stringwerte werden gekuerzt.
 - Der `ApiRuntimeResolver` unter `src/renderer/domain/saf` bindet die General-API-Operationen `saf-receivers`, `saf-insurers` und `techUserEnrolment` an die aktive Version eines Environments und erzeugt aus Environment-`baseUrl`, API-`basePath` und Operation-Pfad eine `resolvedUrl` ohne Netzwerkaufruf. Die Runtime-Aufloesung liefert zusaetzlich API-ID, API-Name, API-Version und Operation-Metadaten fuer UI-Diagnosen.
 - SAF Profile fuehren getrennte Referenzen fuer Encryption- und Signing-Keypairs.
 - Default Input Topic: `eh.saf.in.v1`
@@ -97,3 +103,4 @@ npm run generate:api
 - Lokale Secret-, Zertifikats- und `.env`-Dateien sind in `.gitignore` ausgeschlossen; `.env.example` bleibt fuer Platzhalter erlaubt.
 - Platzhalterwerte muessen lokal und nicht produktiv bleiben.
 - Kafka und API-Runtime sind ausser dem Tech User Enrollment Call nur modelliert, nicht angebunden.
+- Die Log-Erweiterung fuegt keine echte Kafka-, OAuth2-Token- oder mTLS-Runtime hinzu.

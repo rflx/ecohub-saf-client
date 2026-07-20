@@ -1,4 +1,5 @@
 export { KafkaClient } from './kafka';
+export * from './applicationLog';
 export { profileStorageService, ProfileStorageService } from './profileStorage';
 export type { ProfileStorageSnapshot } from './profileStorage';
 export { localSecretStore, LocalSecretStore } from './secrets';

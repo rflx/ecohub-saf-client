@@ -43,6 +43,7 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
     }
 
     const resolvedEndpoint = this.resolveEnrollmentEndpoint(request);
+    const profile = snapshot.profiles.find((item) => item.id === request.profileId);
     const enrolmentRequest: EnrolTechUserRequest = {
       idpUserId: request.techUserIdpNumber.trim(),
       password: request.password,
@@ -56,6 +57,15 @@ export class GeneralApiTechUserEnrollmentService implements TechUserEnrollmentSe
       url: resolvedEndpoint.resolvedUrl,
       apiVersion: resolvedEndpoint.apiVersion,
       timeoutMs: environment.timeoutMs,
+      logContext: {
+        profileId: request.profileId,
+        profileName: profile?.name,
+        environmentId: request.environmentId,
+        apiId: resolvedEndpoint.apiId,
+        apiName: resolvedEndpoint.apiName,
+        operationId: resolvedEndpoint.operationId,
+        operationName: resolvedEndpoint.operationName,
+      },
     });
 
     validateEnrollmentResponse(response);

@@ -15,5 +15,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "types": ["node", "electron-squirrel-startup"]
-  }
+  },
+  "exclude": ["tests"]
 }

@@ -1,3 +1,6 @@
+import type { ApplicationLogOperation } from '../../renderer/models';
+import { applicationLogService } from '../../renderer/services/applicationLog';
+
 export type SafApiHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export type SafApiJsonRequest = {
@@ -12,6 +15,7 @@ export type SafApiJsonResponse = {
   ok: boolean;
   status: number;
   responseBody: unknown;
+  responseHeaders?: Record<string, string>;
   networkError?: string;
 };
 
@@ -26,11 +30,25 @@ declare global {
 }
 
 export class SafApiHttpService {
-  protected async requestJson<ResponseBody>(request: SafApiJsonRequest): Promise<ResponseBody> {
+  protected async requestJson<ResponseBody>(request: SafApiJsonRequest, context: Partial<ApplicationLogOperation> = {}): Promise<ResponseBody> {
+    const correlationId = applicationLogService.startOperation({
+      ...context,
+      transport: 'rest',
+      method: request.method,
+      url: request.url,
+      requestHeaders: {
+        Accept: 'application/json',
+        ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...request.headers,
+      },
+      requestBody: request.body,
+    });
     const bridge = globalThis.window?.safApi;
 
     if (!bridge) {
-      throw new Error(createMissingSafApiBridgeMessage());
+      const error = new Error(createMissingSafApiBridgeMessage());
+      applicationLogService.failOperation(correlationId, { errorCode: 'BRIDGE_UNAVAILABLE', errorMessage: error.message });
+      throw error;
     }
 
     let response: SafApiJsonResponse;
@@ -39,18 +57,36 @@ export class SafApiHttpService {
       response = await bridge.requestJson(request);
     } catch (error) {
       const reason = error instanceof Error ? error.message : undefined;
-
-      throw new Error(createNetworkErrorMessage(reason));
+      const networkError = new Error(createNetworkErrorMessage(reason));
+      applicationLogService.failOperation(correlationId, { errorCode: 'NETWORK_ERROR', errorMessage: networkError.message });
+      throw networkError;
     }
 
     if (response.status === 0) {
-      throw new Error(createNetworkErrorMessage(response.networkError));
+      const error = new Error(createNetworkErrorMessage(response.networkError));
+      applicationLogService.failOperation(correlationId, {
+        errorCode: getNetworkErrorCode(response.networkError), errorMessage: error.message,
+        responseBody: response.responseBody, responseHeaders: response.responseHeaders,
+      });
+      throw error;
     }
 
     if (!response.ok) {
-      throw this.createApiError(response.status, response.responseBody);
+      const error = this.createApiError(response.status, response.responseBody);
+      const apiDetails = getApiErrorDetails(response.responseBody);
+      applicationLogService.failOperation(correlationId, {
+        httpStatus: response.status, responseHeaders: response.responseHeaders,
+        responseBody: response.responseBody, errorCode: apiDetails.errorCode ?? 'HTTP_ERROR',
+        errorMessage: apiDetails.errorMessage ?? `SAF API request failed (${response.status}).`,
+      });
+      throw error;
     }
 
+    applicationLogService.completeOperation(correlationId, {
+      httpStatus: response.status,
+      responseHeaders: response.responseHeaders,
+      responseBody: response.responseBody,
+    });
     return response.responseBody as ResponseBody;
   }
 
@@ -59,6 +95,7 @@ export class SafApiHttpService {
     body: unknown,
     timeoutMs: number,
     headers?: Record<string, string>,
+    context?: Partial<ApplicationLogOperation>,
   ): Promise<ResponseBody> {
     return this.requestJson<ResponseBody>({
       method: 'POST',
@@ -66,12 +103,25 @@ export class SafApiHttpService {
       timeoutMs,
       body,
       headers,
-    });
+    }, context);
   }
 
   protected createApiError(status: number, responseBody: unknown): Error {
     return new Error(createApiErrorMessage(status, responseBody));
   }
+}
+
+function getApiErrorDetails(responseBody: unknown): { errorCode?: string; errorMessage?: string } {
+  if (!responseBody || typeof responseBody !== 'object') return {};
+  const value = responseBody as Record<string, unknown>;
+  return {
+    errorCode: typeof value.errorCode === 'string' ? value.errorCode : undefined,
+    errorMessage: typeof value.errorMessage === 'string' ? value.errorMessage : undefined,
+  };
+}
+
+function getNetworkErrorCode(message?: string): string {
+  return message?.match(/\b(?:ERR|E)[A-Z0-9_]+\b/)?.[0] ?? 'NETWORK_ERROR';
 }
 
 function createApiErrorMessage(status: number, responseBody: unknown): string {
